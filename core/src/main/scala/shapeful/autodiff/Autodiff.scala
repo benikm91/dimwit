@@ -1,6 +1,6 @@
 package shapeful.autodiff
 
-import shapeful.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Shape, AxisIndices, Value}
+import shapeful.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Shape, AxisIndices}
 import shapeful.jax.Jax
 import me.shadaj.scalapy.py
 
@@ -17,7 +17,7 @@ object Autodiff:
     case h *: t => GradientTensorVsInput[h, OutShape, V] *: GradientTensorVsInput[t, OutShape, V]
     case Tensor[inS, v2] => Tensor[Tuple.Concat[OutShape, inS], V]
 
-  def grad[Input, V : Value](f: Input => Tensor0[V])(using 
+  def grad[Input, V](f: Input => Tensor0[V])(using 
     inTree: ToPyTree[Input],
     outTree: ToPyTree[Tensor0[V]],
   ): Input => Input =

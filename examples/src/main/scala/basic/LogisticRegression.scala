@@ -14,15 +14,15 @@ object LogisticRegression:
   object BinaryLogisticRegression:
     case class Params(
       linearMap: LinearMap.Params[Feature]
-    ) derives TensorTree, ToPyTree
+    )
 
   case class BinaryLogisticRegression(
     params: BinaryLogisticRegression.Params,
-  ) extends Function[Tensor1[Feature, Float32], Tensor0[Float32]]:
+  ) extends Function[Tensor1[Feature, Float], Tensor0[Boolean]]:
     private val linear = LinearMap(params.linearMap)
-    def logits(input: Tensor1[Feature, Float32]): Tensor0[Float32] = linear(input)
-    def probits(input: Tensor1[Feature, Float32]): Tensor0[Float32] = sigmoid(logits(input))
-    def apply(input: Tensor1[Feature, Float32]): Tensor0[Float32] = logits(input) >= Tensor0.of[Float32](0f)
+    def logits(input: Tensor1[Feature, Float]): Tensor0[Float] = linear(input)
+    def probits(input: Tensor1[Feature, Float]): Tensor0[Float] = sigmoid(logits(input))
+    def apply(input: Tensor1[Feature, Float]): Tensor0[Boolean] = logits(input) >= Tensor0(0f)
   def main(args: Array[String]): Unit =
 
     import io.github.quafadas.table.*
@@ -41,16 +41,19 @@ object LogisticRegression:
           row.body_mass_g.toFloat
         )
       }.toArray
-    val labelData = dfShuffled.column["species"].toArray.map(_.toFloat)
+    val labelData = dfShuffled.column["species"].toArray.map {
+      case 1 => true
+      case 0 => false
+    }
 
-    val dataUnnormalized = Tensor2.of[Float32](Axis[Sample], Axis[Feature], featureData)
-    val dataLabels = Tensor1.of[Int32](Axis[Sample], labelData)
+    val dataUnnormalized = Tensor2(Of[Float]).fromArray(Axis[Sample], Axis[Feature], featureData)
+    val dataLabels = Tensor1(Of[Boolean]).fromArray(Axis[Sample], labelData)
 
     // TODO implement split
     val (trainingDataUnnormalized, valDataUnnormalized) = (dataUnnormalized, dataUnnormalized)
     val (trainLabels, valLabels) = (dataLabels, dataLabels)
 
-    def calcMeanAndStd(t: Tensor2[Sample, Feature, Float32]): (Tensor1[Feature, Float32], Tensor1[Feature, Float32]) =
+    def calcMeanAndStd(t: Tensor2[Sample, Feature, Float]): (Tensor1[Feature, Float], Tensor1[Feature, Float]) =
       val mean = t.vmap(Axis[Feature])(_.mean)
       val std = zipvmap(Axis[Feature])(t, mean):
         case (x, m) => 
@@ -59,7 +62,7 @@ object LogisticRegression:
           // x.vmap(Axis[Sample])(xi => (xi - m).pow(2)).mean.sqrt + epsilon
       (mean, std)
 
-    def standardizeData(mean: Tensor1[Feature, Float32], std: Tensor1[Feature, Float32])(data: Tensor2[Sample, Feature, Float32]): Tensor2[Sample, Feature, Float32] =
+    def standardizeData(mean: Tensor1[Feature, Float], std: Tensor1[Feature, Float])(data: Tensor2[Sample, Feature, Float]): Tensor2[Sample, Feature, Float] =
       data.vapply(Axis[Feature])(feature => (feature - mean) / std)
       // (data :- mean) :/ std
 
@@ -71,9 +74,9 @@ object LogisticRegression:
     val (initKey, restKey) = trainKey.split2()
     val (lossKey, sampleKey) = restKey.split2()
 
-    def loss(data: Tensor2[Sample, Feature, Float32])(params: BinaryLogisticRegression.Params): Tensor0[Float32] =
+    def loss(data: Tensor2[Sample, Feature, Float])(params: BinaryLogisticRegression.Params): Tensor0[Float] =
       val model = BinaryLogisticRegression(params)
-      val losses = zipvmap(Axis[Sample])(data, trainLabels):
+      val losses = zipvmap(Axis[Sample])(data, trainLabels.asType(Of[Float])):
         case (sample, label) =>
           val logits = model.logits(sample)
           relu(logits) - logits * label + ((-logits.abs).exp + 1f).log
@@ -86,6 +89,7 @@ object LogisticRegression:
     val trainLoss = loss(trainingData)
     val valLoss = loss(valData)
     val learningRate = 3e-1f
+    val xxx = summon[FloatTensorTree[BinaryLogisticRegression.Params]]
     val gd = GradientDescent(Autodiff.grad(trainLoss), learningRate)
     
     val trainTrajectory = Iterator.iterate(initParams)(gd.step)
@@ -98,8 +102,8 @@ object LogisticRegression:
           val valPreds = valData.vmap(Axis[Sample])(model)
           println(List(
             "epoch: " + index,
-            "trainAcc: " + (1f - (trainPreds - trainLabels.asType[Float32]).abs.mean),
-            "valAcc: " + (1f - (valPreds - valLabels.asType[Float32]).abs.mean)
+            "trainAcc: " + (1f - (trainPreds.toInt - trainLabels.toInt).abs.mean),
+            "valAcc: " + (1f - (valPreds.toInt - valLabels.toInt).abs.mean)
           ).mkString(", "))
       .map((params, _) => params)
       .drop(2500)

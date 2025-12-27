@@ -1,6 +1,6 @@
 package shapeful.autodiff
 
-import shapeful.tensor.{Tensor, Shape, Value}
+import shapeful.tensor.{Tensor, Shape}
 import shapeful.jax.Jax
 
 import me.shadaj.scalapy.py
@@ -18,9 +18,9 @@ object ToPyTree:
   def apply[P](using pt: ToPyTree[P]): ToPyTree[P] = pt
 
   // Keep the tensor instance
-  given [T <: Tuple : Labels, V : Value]: ToPyTree[Tensor[T, V]] with
+  given [T <: Tuple : Labels, V]: ToPyTree[Tensor[T, V]] with
     def toPyTree(t: Tensor[T, V]): Jax.PyAny = t.jaxValue
-    def fromPyTree(p: Jax.PyAny): Tensor[T, V] = Tensor.fromPy(p.as[Jax.PyDynamic])
+    def fromPyTree(p: Jax.PyAny): Tensor[T, V] = Tensor(p.as[Jax.PyDynamic])
 
   // Tuple instances - these should have lower priority than specific case classes
   given tupleInstance[A, B](using ta: ToPyTree[A], tb: ToPyTree[B]): ToPyTree[(A, B)] with
