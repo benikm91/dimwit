@@ -41,7 +41,7 @@ package object shapeful:
   export shapeful.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Tensor3}
   export shapeful.tensor.{Shape, Shape0, Shape1, Shape2, Shape3}
   export shapeful.tensor.{DType, Device}
-  export shapeful.tensor.{Of, ExecutionType, Label, Labels, Axis, AxisIndex, AxisIndices, Dim}
+  export shapeful.tensor.{VType, ExecutionType, Label, Labels, Axis, AxisIndex, AxisIndices, Dim}
   
   // Export type helpers
   export shapeful.tensor.Axis.UnwrapAxes

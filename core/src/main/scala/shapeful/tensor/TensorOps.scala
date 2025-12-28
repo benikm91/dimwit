@@ -155,9 +155,9 @@ object TensorOps:
           rtol = tolerance
         ))
 
-      def toBoolean: Tensor[T, Boolean] = t.asType(Of[Boolean])
-      def toInt: Tensor[T, Int] = t.asType(Of[Int])
-      def toFloat: Tensor[T, Float] = t.asType(Of[Float])
+      def toBoolean: Tensor[T, Boolean] = t.asType(VType[Boolean])
+      def toInt: Tensor[T, Int] = t.asType(VType[Int])
+      def toFloat: Tensor[T, Float] = t.asType(VType[Float])
 
   end Elementwise
 
@@ -280,7 +280,7 @@ object TensorOps:
         idx1: AxisIndex[T, L1], 
         idx2: AxisIndex[T, L2],
         remover: RemoverAll[T, (L1, L2)],
-        namesOf: Labels[remover.Out] 
+        labels: Labels[remover.Out] 
       ): Tensor[remover.Out, V] = 
         // JAX det only works on the last two axes (-2, -1). We must move the user's selected axes to the end.
         val moved = Jax.jnp.moveaxis(
@@ -294,14 +294,14 @@ object TensorOps:
         idx1: AxisIndex[T, L1], 
         idx2: AxisIndex[T, L2],
         remover: RemoverAll[T, (L1, L2)],
-        namesOf: Labels[remover.Out] 
+        labels: Labels[remover.Out] 
       ): Tensor[remover.Out, V] = Tensor(Jax.jnp.trace(t.jaxValue, offset = offset, axis1 = idx1.value, axis2 = idx2.value))
 
       def diagonal[L1 : Label, L2 : Label](axis1: Axis[L1], axis2: Axis[L2], offset: Int=0)(using 
         idx1: AxisIndex[T, L1], 
         idx2: AxisIndex[T, L2],
         remover: RemoverAll[T, (L1, L2)],
-        namesOf: Labels[remover.Out] 
+        labels: Labels[remover.Out] 
       ): Tensor[remover.Out *: L1 *: EmptyTuple, V] = Tensor(Jax.jnp.diagonal(t.jaxValue, offset = offset, axis1 = idx1.value, axis2 = idx2.value))
 
     extension [L1 : Label, L2 : Label, V](t: Tensor2[L1, L2, V])
@@ -723,7 +723,7 @@ object TensorOps:
             remover: Remover.Aux[HeadShape, L, R],
             axisIndex: AxisIndex[HeadShape, L],
             tailZipper: Zipper.Aux[TailShapes, L, TailValues, TailSliced],
-            labelsOf: Labels[R],
+            labels: Labels[R],
         ): Zipper.Aux[HeadShape *: TailShapes, L, HeadValue *: TailValues, R *: TailSliced] =
           new Zipper[HeadShape *: TailShapes, L, HeadValue *: TailValues]:
             type SlicedShapes = R *: TailSliced

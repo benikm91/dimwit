@@ -3,7 +3,7 @@ package nn
 import shapeful.*
 import shapeful.random.Random
 import shapeful.random.Random.Key
-import shapeful.tensor.Of
+import shapeful.tensor.VType
 import shapeful.tensor.ExecutionType
 
 object LinearLayer:
@@ -24,7 +24,7 @@ object LinearLayer:
             val std = Tensor0[Float].apply(1f)
             Params(
                 weight = Random.Normal(paramKey, Shape(inputDim, outputDim), mean, std),
-                bias = Tensor(Of[Float]).zeros(Shape(outputDim)),
+                bias = Tensor.zeros(Shape(outputDim), VType[Float]),
             )
 
 case class LinearLayer[In : Label,Out : Label](params: LinearLayer.Params[In, Out]) extends Function[Tensor1[In, Float], Tensor1[Out, Float]]:

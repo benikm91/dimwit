@@ -77,7 +77,7 @@ object Random:
     )(using 
       executionType: ExecutionType[Float]
     ): Tensor[T, Float] = 
-      apply(key, shape, Tensor0(Of[Float]).zero, Tensor0(Of[Float]).one)
+      apply(key, shape, Tensor0.zero(VType[Float]), Tensor0.one(VType[Float]))
 
     /** Uniform distribution in [minval, maxval) */
     def apply[T <: Tuple: Labels](

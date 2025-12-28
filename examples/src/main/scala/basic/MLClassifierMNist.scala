@@ -88,7 +88,7 @@ object MLPClassifierMNist:
           // Convert bytes to floats with vectorized operation
           val allPixels = pixelBytes.map(b => (b & 0xff) / 255.0f)
           val shape = Shape(Axis[S] -> numImages, Axis[Height] -> rows, Axis[Width] -> cols)
-          val tensor = Tensor(Of[Float]).fromArray(shape, allPixels)
+          val tensor = Tensor.fromArray(shape, VType[Float])(allPixels)
           tensor.toDevice(device)
         finally dis.close()
       }
@@ -108,7 +108,7 @@ object MLPClassifierMNist:
         for i <- 0.until(numLabels) do labels(i) = dis.readUnsignedByte()
 
         // Create Tensor1 from labels - specify the label type correctly
-        val tensor = Tensor1(Of[Int]).fromArray(Axis[S], labels)
+        val tensor = Tensor1.fromArray(Axis[S], VType[Int])(labels)
         tensor.toDevice(device)
       finally dis.close()
     }

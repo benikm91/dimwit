@@ -8,12 +8,12 @@ object ActivationFunctions:
   // TODO rewrite relu, sigmoid to JAX
   
   def sigmoid[T <: Tuple : Labels](t: Tensor[T, Float]): Tensor[T, Float] =
-    val ones = Tensor(Of(t)).ones(t.shape)
-    val minust = t.scale(-Tensor0(Of(t)).one)
+    val ones = Tensor.ones(t.shape, t.vtype)
+    val minust = t.scale(-Tensor0.one(t.vtype))
     ones / (ones + (minust).exp)
   
   def relu[T <: Tuple : Labels, V](t: Tensor[T, V]): Tensor[T, V] = 
-    val zeros = Tensor(Of(t)).zeros(t.shape)
+    val zeros = Tensor.zeros(t.shape, t.vtype)
     maximum(t, zeros)
 
   def gelu[T <: Tuple : Labels, V](t: Tensor[T, V]): Tensor[T, V] =

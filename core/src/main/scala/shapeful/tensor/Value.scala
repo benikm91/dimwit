@@ -12,11 +12,11 @@ object ExecutionType:
   given booleanValue: ExecutionType[Boolean] with
     def dtype: DType = DType.Bool
 
-object Of:
-  def apply[V](tensor: Tensor[?, V]): Of[V] = new OfImpl[V](tensor.dtype)
-  def apply[A: ExecutionType]: Of[A] = new OfImpl[A](summon[ExecutionType[A]].dtype)
+object VType:
+  def apply[V](tensor: Tensor[?, V]): VType[V] = new OfImpl[V](tensor.dtype)
+  def apply[A: ExecutionType]: VType[A] = new OfImpl[A](summon[ExecutionType[A]].dtype)
   
-sealed trait Of[A]:
+sealed trait VType[A]:
   def dtype: DType
 
-class OfImpl[A](val dtype: DType) extends Of[A]
+class OfImpl[A](val dtype: DType) extends VType[A]

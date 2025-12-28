@@ -46,8 +46,8 @@ object LogisticRegression:
       case 0 => false
     }
 
-    val dataUnnormalized = Tensor2(Of[Float]).fromArray(Axis[Sample], Axis[Feature], featureData)
-    val dataLabels = Tensor1(Of[Boolean]).fromArray(Axis[Sample], labelData)
+    val dataUnnormalized = Tensor2.fromArray(Axis[Sample], Axis[Feature], VType[Float])(featureData)
+    val dataLabels = Tensor1.fromArray(Axis[Sample], VType[Boolean])(labelData)
 
     // TODO implement split
     val (trainingDataUnnormalized, valDataUnnormalized) = (dataUnnormalized, dataUnnormalized)
@@ -76,7 +76,7 @@ object LogisticRegression:
 
     def loss(data: Tensor2[Sample, Feature, Float])(params: BinaryLogisticRegression.Params): Tensor0[Float] =
       val model = BinaryLogisticRegression(params)
-      val losses = zipvmap(Axis[Sample])(data, trainLabels.asType(Of[Float])):
+      val losses = zipvmap(Axis[Sample])(data, trainLabels.toFloat):
         case (sample, label) =>
           val logits = model.logits(sample)
           relu(logits) - logits * label + ((-logits.abs).exp + 1f).log

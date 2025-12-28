@@ -4,24 +4,24 @@ import shapeful.*
 
 @main
 def autoDiffAPI(): Unit =
-  val AB = Tensor(Of[Float]).ones(Shape(
+  val AB = Tensor.ones(Shape(
     Axis["A"] -> 10,
     Axis["B"] -> 5,
-  ))
-  val AC = Tensor(Of[Float]).ones(Shape(
+  ), VType[Float])
+  val AC = Tensor.ones(Shape(
       Axis["A"]-> 10,
       Axis["C"] -> 5
-  ))
-  val ABCD = Tensor(Of[Float]).ones(Shape(
+  ), VType[Float])
+  val ABCD = Tensor.ones(Shape(
       Axis["A"] -> 2,
       Axis["B"] -> 3,
       Axis["C"] -> 4,
       Axis["D"] -> 5,
-  ))
+  ), VType[Float])
   {
     def f(x: Tensor1["A", Float]): Tensor0[Float] = x.sum
     val df = Autodiff.grad(f)
-    val delta = df(Tensor1(Of[Float]).fromArray(Axis["A"], Array.fill(10)(1.0f)))
+    val delta = df(Tensor1.fromArray(Axis["A"], VType[Float])(Array.fill(10)(1.0f)))
     println(delta.shape)
   }
   {
@@ -30,11 +30,11 @@ def autoDiffAPI(): Unit =
       params._1.sum + params._2.sum
     val df = Autodiff.grad(f)
     val delta = df((
-      Tensor2(Of[Float]).fromArray(Axis["A"], Axis["B"], Array(
+      Tensor2.fromArray(Axis["A"], Axis["B"], VType[Float])(Array(
         Array.fill(5)(1.0f),
         Array.fill(5)(1.0f),
       )),
-      Tensor1(Of[Float]).fromArray(Axis["C"], Array.fill(5)(1.0f))
+      Tensor1.fromArray(Axis["C"], VType[Float])(Array.fill(5)(1.0f))
     ))
     println((delta._1.shape, delta._2.shape))
   }
@@ -47,24 +47,24 @@ def autoDiffAPI(): Unit =
       params.a.sum + params.b.sum
     val df = Autodiff.grad(f)
     val delta = df(Params(
-      Tensor2(Of[Float]).fromArray(Axis["A"], Axis["B"], Array(
+      Tensor2.fromArray(Axis["A"], Axis["B"], VType[Float])(Array(
         Array.fill(5)(1.0f),
         Array.fill(5)(1.0f),
       )),
-      Tensor1(Of[Float]).fromArray(Axis["C"], Array.fill(5)(1.0f))
+      Tensor1.fromArray(Axis["C"], VType[Float])(Array.fill(5)(1.0f))
     ))
     println(delta)
   }
   {
     def f(x: Tensor1["A", Float]): Tensor1["A", Float] = x
     val df = Autodiff.jacobian(f)
-    val delta = df(Tensor1(Of[Float]).fromArray(Axis["A"], Array.fill(10)(1.0f)))
+    val delta = df(Tensor1.fromArray(Axis["A"], VType[Float])(Array.fill(10)(1.0f)))
     println(delta.shape)
   }
   {
     def f(x: Tensor1["A", Float]) = x.outerProduct(x)
     val df = Autodiff.jacobian(f)
-    val delta = df(Tensor1(Of[Float]).fromArray(Axis["A"], Array.fill(10)(1.0f)))
+    val delta = df(Tensor1.fromArray(Axis["A"], VType[Float])(Array.fill(10)(1.0f)))
     println(delta.shape)
   }
   {
@@ -73,11 +73,11 @@ def autoDiffAPI(): Unit =
     def f(x: ParamsTuple): Tensor1["A", Float] = x._1.slice(Axis["B"] -> 0)
     val df = Autodiff.jacobian(f)
     val delta = df((
-      Tensor2(Of[Float]).fromArray(Axis["A"], Axis["B"], Array(
+      Tensor2.fromArray(Axis["A"], Axis["B"], VType[Float])(Array(
         Array.fill(5)(1.0f),
         Array.fill(5)(1.0f),
       )),
-      Tensor1(Of[Float]).fromArray(Axis["C"], Array.fill(5)(1.0f))
+      Tensor1.fromArray(Axis["C"], VType[Float])(Array.fill(5)(1.0f))
     ))
     println((delta._1.shape, delta._2.shape))
   }
@@ -86,7 +86,7 @@ def autoDiffAPI(): Unit =
     def f(x: Tensor1["A", Float]): Tensor0[Float] = x.sum
     val df = Autodiff.jacobian(f)
     val ddf = Autodiff.jacobian(df)
-    val delta = ddf(Tensor1(Of[Float]).fromArray(Axis["A"], Array.fill(10)(1.0f)))
+    val delta = ddf(Tensor1.fromArray(Axis["A"], VType[Float])(Array.fill(10)(1.0f)))
     println(delta.shape)
   }
   {
@@ -95,7 +95,7 @@ def autoDiffAPI(): Unit =
     val ddf = Autodiff.jacobian(df)
     val dddf = Autodiff.jacobian(ddf)
     val ddddf = Autodiff.jacobian(dddf)
-    val delta = ddddf(Tensor1(Of[Float]).fromArray(Axis["A"], Array.fill(10)(1.0f)))
+    val delta = ddddf(Tensor1.fromArray(Axis["A"], VType[Float])(Array.fill(10)(1.0f)))
     println(delta.shape)
   }
   {
@@ -105,11 +105,11 @@ def autoDiffAPI(): Unit =
     val df = Autodiff.jacobian(f)
     val ddf = Autodiff.jacobian(df)
     val delta = ddf((
-      Tensor2(Of[Float]).fromArray(Axis["A"], Axis["B"], Array(
+      Tensor2.fromArray(Axis["A"], Axis["B"], VType[Float])(Array(
         Array.fill(5)(1.0f),
         Array.fill(5)(1.0f),
       )),
-      Tensor1(Of[Float]).fromArray(Axis["C"], Array.fill(5)(1.0f))
+      Tensor1.fromArray(Axis["C"], VType[Float])(Array.fill(5)(1.0f))
     ))
     // TODO Is this actually correct, check it!
     println((
