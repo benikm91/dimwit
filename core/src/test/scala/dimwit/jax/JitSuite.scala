@@ -19,7 +19,7 @@ class JitSuite extends AnyPropSpec with Matchers:
     val tensor = Tensor.ones(shape, VType[Float])
 
     def complexFn(t: Tensor1[A, Float]): Tensor1[A, Float] =
-      (0 until 50).foldLeft(t) { (acc, _) => acc * (acc :+ 1f) :/ 2f }
+      (0 until 50).foldLeft(t) { (acc, _) => acc * ((acc +! 1f) /! 2f) }
 
     val jitComplexFn = jit(complexFn)
 

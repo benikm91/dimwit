@@ -15,7 +15,7 @@ def binaryCrossEntropy[L: Label](
     label: Tensor0[Int]
 ): Tensor0[Float] =
   val maxLogit = logits.max
-  val stableExp = (logits :- maxLogit).exp
+  val stableExp = (logits -! maxLogit).exp
   val logSumExp = stableExp.sum.log + maxLogit
   val targetLogit = logits.slice(Axis[L] -> label)
   -(targetLogit - logSumExp)

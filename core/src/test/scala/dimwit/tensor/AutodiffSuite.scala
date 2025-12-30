@@ -39,17 +39,17 @@ class AutodiffSuite extends AnyPropSpec with ScalaCheckPropertyChecks with Match
 
   property("derivative vector function sum(x^2)"):
     def f(x: Tensor1[A, Float]) = (x * x).sum
-    def dfTruth(x: Tensor1[A, Float]): Tensor1[A, Float] = x :* 2.0f
+    def dfTruth(x: Tensor1[A, Float]): Tensor1[A, Float] = x *! 2.0f
     val df = Autodiff.grad(f)
     forAll(tensor1Gen(VType[Float])): x =>
       df(x) should approxEqual(dfTruth(x))
 
   property("derivative two parameter function sum((x+y*2)^2)"):
-    def f(x: Tensor1[A, Float], y: Tensor1[A, Float]) = ((x + (y :* 2f)).pow(2)).sum
+    def f(x: Tensor1[A, Float], y: Tensor1[A, Float]) = ((x + (y *! 2f)).pow(2)).sum
     def dfTruth(x: Tensor1[A, Float], y: Tensor1[A, Float]): (Tensor1[A, Float], Tensor1[A, Float]) =
       // TODO :* has lower precedence than +, so need parentheses here, maybe syntax must be changed?
-      val xGrad = (x :* 2.0f) + (y :* 4.0f)
-      val yGrad = (x :* 4.0f) + (y :* 8.0f)
+      val xGrad = (x *! 2.0f) + (y *! 4.0f)
+      val yGrad = (x *! 4.0f) + (y *! 8.0f)
       (xGrad, yGrad)
     val df = Autodiff.grad(f)
     forAll(twoTensor1Gen(VType[Float])): (x, y) =>
@@ -60,9 +60,9 @@ class AutodiffSuite extends AnyPropSpec with ScalaCheckPropertyChecks with Match
 
   property("jacobian vector function f(x) = 2x"):
     val n = 2
-    def f(x: Tensor1[A, Float]) = x :* 2.0f
+    def f(x: Tensor1[A, Float]) = x *! 2.0f
     def dfTruth(x: Tensor1[A, Float]): Tensor2[A, A, Float] =
-      Tensor2.eye(x.dim(Axis[A]), VType[Float]) :* 2.0f
+      Tensor2.eye(x.dim(Axis[A]), VType[Float]) *! 2.0f
     val jf = Autodiff.jacobian(f)
     forAll(tensor1Gen(VType[Float])): x =>
       jf(x) should approxEqual(dfTruth(x))
