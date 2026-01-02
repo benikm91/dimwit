@@ -61,3 +61,18 @@ lazy val examples = (project in file("examples"))
     Compile / resourceDirectory := baseDirectory.value / "src" / "main" / "resources",
     scalafmtFailOnErrors := false
   )
+
+lazy val docs = (project in file(".dimwit-docs")) // Hidden folder for sbt metadata
+  .enablePlugins(MdocPlugin)
+  .dependsOn(core, nn)
+  .settings(
+    name := "dimwit-docs",
+    mdocIn := (ThisBuild / baseDirectory).value / "docs",
+    mdocOut := (ThisBuild / baseDirectory).value,
+    mdocExtraArguments := Seq("--no-link-hygiene"),
+    mdocVariables := Map(
+      "VERSION" -> version.value
+    ),
+    fork := true,
+    envVars := (ThisBuild / envVars).value
+  )

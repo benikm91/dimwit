@@ -26,7 +26,7 @@ JAX and einops, and efficient implementations of tensor operations using JAX as 
 
 ## Example
 
-```scala
+```scala mdoc:silent
 import dimwit.*
 
 // Labels are simply Scala types
