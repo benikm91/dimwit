@@ -50,6 +50,9 @@ jobs:
       - name: Compile examples module
         run: sbt "project examples" compile
 
+      - name: Check if README is up to date
+        run: sbt "docs/mdoc --check"
+
       - name: Run tests
         run: sbt test
 
