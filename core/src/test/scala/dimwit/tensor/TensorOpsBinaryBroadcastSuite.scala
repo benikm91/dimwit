@@ -19,23 +19,17 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
 
   py.exec("import jax.numpy as jnp")
 
-  def abcdGen: Gen[(Int, Int, Int, Int)] = for
-    a <- Gen.choose(1, 5)
-    b <- Gen.choose(1, 5)
-    c <- Gen.choose(1, 5)
-    d <- Gen.choose(1, 5)
-  yield (a, b, c, d)
-
   def abAndbc: Gen[(Tensor2[A, B, Float], Tensor2[B, C, Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     ab <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b), -1.0f, 1.0f)
     bc <- genTensor(Shape(Axis[B] -> b, Axis[C] -> c), -1.0f, 1.0f)
   yield (
     ab,
     bc
   )
+
   def aAbcdGen: Gen[(Tensor1[A, Float], Tensor[(A, B, C, D), Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     t1 <- genTensor(Shape(Axis[A] -> a), -1.0f, 1.0f)
     t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
   yield (
@@ -44,7 +38,7 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
   )
 
   def abAbcdGen: Gen[(Tensor2[A, B, Float], Tensor[(A, B, C, D), Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     t1 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b), -1.0f, 1.0f)
     t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
   yield (
@@ -53,7 +47,7 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
   )
 
   def dAbcdGen: Gen[(Tensor1[D, Float], Tensor[(A, B, C, D), Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     t1 <- genTensor(Shape(Axis[D] -> d), -1.0f, 1.0f)
     t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
   yield (
@@ -62,7 +56,7 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
   )
 
   def cdAbcdGen: Gen[(Tensor2[C, D, Float], Tensor[(A, B, C, D), Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     t1 <- genTensor(Shape(Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
     t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
   yield (
@@ -71,7 +65,7 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
   )
 
   def bcdAbcdGen: Gen[(Tensor[(B, C, D), Float], Tensor[(A, B, C, D), Float])] = for
-    (a, b, c, d) <- abcdGen
+    (a, b, c, d) <- abcdGen()
     t1 <- genTensor(Shape(Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
     t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c, Axis[D] -> d), -1.0f, 1.0f)
   yield (
@@ -119,7 +113,7 @@ class TensorOpsBinaryBroadcastSuite extends AnyFunSpec with ScalaCheckPropertyCh
 
     it("addition does not bind tighter than multiplication"):
       forAll(abAbcdGen): (ab, abcd) =>
-        abcd *! (ab +! ab) shouldNot approxEqual(abcd *! ab +! ab)
+        abcd *! (ab + ab) shouldNot approxEqual(abcd *! ab +! ab)
 
   it("TODO Broadcasting ab + bc"):
     forAll(abAndbc): (ab, bc) =>

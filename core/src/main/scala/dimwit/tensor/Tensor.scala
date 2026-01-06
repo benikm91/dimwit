@@ -5,7 +5,7 @@ import scala.compiletime.{erasedValue, summonFrom}
 import dimwit.jax.Jax
 import dimwit.jax.JaxDType
 import dimwit.jax.Jax.PyDynamic
-import dimwit.tensor.{Label, Labels, ExecutionType, VType}
+import dimwit.tensor.{ExecutionType, VType}
 //import dimwit.random.Random
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
@@ -25,14 +25,16 @@ object Device:
     Device.CPU
   )
 
-class Tensor[+T <: Tuple: Labels, V] private[tensor] (
+class Tensor[+T <: Tuple, V] private[tensor] (
     val jaxValue: Jax.PyDynamic
 ):
 
-  lazy val axes: List[String] = shape.labels
+  def axes: List[String] = shape.labels
   lazy val dtype: DType = JaxDType.fromJaxDtype(jaxValue.dtype)
-  lazy val shape: Shape[T] = Shape.fromList[T](jaxValue.shape.as[Seq[Int]].toList)
+  def shape: Shape[T] = Shape.fromList[T](dimensions)
   lazy val vtype: VType[V] = VType(this)
+  def dimensions: List[Int] = jaxValue.shape.as[Seq[Int]].toList
+  def rank: Int = dimensions.size
 
   lazy val device: Device = Device.values.find(d => Jax.device_get(jaxValue).equals(d.jaxDevice)).getOrElse(Device.Other(Jax.device_get(jaxValue)))
 
@@ -51,23 +53,22 @@ class Tensor[+T <: Tuple: Labels, V] private[tensor] (
 
   private def jaxArray: Jax.PyDynamic = jaxValue.block_until_ready()
 
-  def dim[L](axis: Axis[L])(using axisIndex: AxisIndex[T @uncheckedVariance, L]): Dim[L] =
-    shape.dim(axis)
+  def dim[L](axis: Axis[L])(using axisIndex: AxisIndex[T @uncheckedVariance, L]): Dim[L] = shape.dim(axis)
 
 object Tensor:
 
   type IndicesOf[T <: Tuple] = Tuple.Map[T, [_] =>> Int]
 
-  def apply[T <: Tuple: Labels, V](jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
-  def randn[T <: Tuple: Labels](shape: Shape[T])(key: Random.Key)(using
+  def apply[T <: Tuple, V](jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
+  def randn[T <: Tuple](shape: Shape[T])(key: Random.Key)(using
       executionType: ExecutionType[Float]
   ): Tensor[T, Float] = Random.Normal(shape)(key)
 
-  def fromPy[T <: Tuple: Labels, V](vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
-  def zeros[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V]): Tensor[T, V] = Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = vtype.dtype.jaxType))
-  def ones[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V]): Tensor[T, V] = Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = vtype.dtype.jaxType))
-  def const[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V])(value: V)(using writer: Writer[V]): Tensor[T, V] = Tensor(Jax.jnp.full(shape.dimensions.toPythonProxy, value, dtype = vtype.dtype.jaxType))
-  def fromArray[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V])(values: Array[V])(using
+  def fromPy[T <: Tuple, V](vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
+  def zeros[T <: Tuple, V](shape: Shape[T], vtype: VType[V]): Tensor[T, V] = Tensor(Jax.jnp.zeros(shape.dimensions.toPythonProxy, dtype = vtype.dtype.jaxType))
+  def ones[T <: Tuple, V](shape: Shape[T], vtype: VType[V]): Tensor[T, V] = Tensor(Jax.jnp.ones(shape.dimensions.toPythonProxy, dtype = vtype.dtype.jaxType))
+  def const[T <: Tuple, V](shape: Shape[T], vtype: VType[V])(value: V)(using writer: Writer[V]): Tensor[T, V] = Tensor(Jax.jnp.full(shape.dimensions.toPythonProxy, value, dtype = vtype.dtype.jaxType))
+  def fromArray[T <: Tuple, V](shape: Shape[T], vtype: VType[V])(values: Array[V])(using
       py.ConvertableToSeqElem[V]
   ): Tensor[T, V] =
     require(values.length == shape.size, s"Values length ${values.length} does not match shape size ${shape.size}")

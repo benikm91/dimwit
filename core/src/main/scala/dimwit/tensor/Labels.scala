@@ -34,6 +34,12 @@ private trait LabelsLowPriority
 
 object Labels extends LabelsLowPriority:
 
+  object Labels:
+    transparent inline given derived[T <: Tuple]: Labels[T] =
+      val namesList = summonTypeNames[T]
+      new Labels[T]:
+        def names: List[String] = namesList
+
   given namesOfEmpty: Labels[EmptyTuple] = new LabelsImpl[EmptyTuple](Nil)
 
   given lift[A](using v: Label[A]): Labels[A] = new LabelsImpl[A](List(v.name))

@@ -62,7 +62,7 @@ class TensorOpsFunctionalSuite extends AnyFunSpec with ScalaCheckPropertyChecks 
         val scVal2 = t.vmap(Axis[B])(_.vmap(Axis[A])(_.sum))
         scVal1 should approxEqual(scVal2.transpose)
 
-  describe("zipvmap2 operation"):
+  describe("zipvmap operation"):
     it("zipvmap2 over axis A adds"):
       forAll(twoTensor3Gen(VType[Float])): (t1, t2) =>
         zipvmap(Axis[A])(t1, t2)((t1i, t2i) => t1i + t2i) should approxEqual(t1 + t2)
@@ -79,7 +79,30 @@ class TensorOpsFunctionalSuite extends AnyFunSpec with ScalaCheckPropertyChecks 
               case (t1ij, t2ij) => t1ij + t2ij
         scVal should approxEqual(t1 + t2)
 
-  describe("zipvmap4 operation"):
+    it("zipvmap should work with tensor of different shapes (A, AB, ABC)"):
+      forAll(for
+        (a, b, c) <- abcGen()
+        t1 <- genTensor(Shape(Axis[A] -> a), VType[Float])
+        t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b), VType[Float])
+        t3 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c), VType[Float])
+      yield (t1, t2, t3)): (a, ab, abc) =>
+        val res = zipvmap(Axis[A])(a, ab, abc):
+          case (ai, abi, abci) => ai + abi.sum + abci.sum
+        .sum
+        res should approxEqual(a.sum + ab.sum + abc.sum)
+
+    it("zipvmap should work with tensor of different shapes (B, AB, ABC)"):
+      forAll(for
+        (a, b, c) <- abcGen()
+        t1 <- genTensor(Shape(Axis[B] -> b), VType[Float])
+        t2 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b), VType[Float])
+        t3 <- genTensor(Shape(Axis[A] -> a, Axis[B] -> b, Axis[C] -> c), VType[Float])
+      yield (t1, t2, t3)): (b, ab, abc) =>
+        val res = zipvmap(Axis[B])(b, ab, abc):
+          case (bi, abi, abci) => bi + abi.sum + abci.sum
+        .sum
+        res should approxEqual(b.sum + ab.sum + abc.sum)
+
     it("zipvmap4 over axis A adds"):
       forAll(
         nTensorGen(4, ShapeGen.genShape3, -1f, +1f).map { seq => (seq(0), seq(1), seq(2), seq(3)) }

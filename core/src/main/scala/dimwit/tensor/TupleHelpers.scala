@@ -5,7 +5,32 @@ import scala.util.NotGiven
 /* Helpers for manipulating Tuple types */
 object TupleHelpers:
 
-  trait StrictSubset[S <: Tuple, T <: Tuple]
+  sealed trait Broadcastable[T1 <: Tuple, T2 <: Tuple]:
+    type Out <: Tuple
+    inline def broadcast[V1, V2](t1: Tensor[T1, V1], t2: Tensor[T2, V2]): (Tensor[Out, V1], Tensor[Out, V2])
+
+  object Broadcastable:
+
+    import dimwit.tensor.TensorOps.Structural.broadcast_to
+
+    given rightBroadcastable[T1 <: Tuple, T2 <: Tuple, Out0 <: Tuple](using
+        ev: StrictSubset[T1, T2]
+    ): Broadcastable[T1, T2] with
+      type Out = T2
+      inline def broadcast[V1, V2](t1: Tensor[T1, V1], t2: Tensor[T2, V2]): (Tensor[Out, V1], Tensor[Out, V2]) =
+        val t1b = t1.broadcast_to(t2)(using ev)
+        (t1b.asInstanceOf[Tensor[Out, V1]], t2.asInstanceOf[Tensor[Out, V2]])
+
+    given leftBroadcastable[T1 <: Tuple, T2 <: Tuple, Out0 <: Tuple](using
+        ev: StrictSubset[T2, T1]
+    ): Broadcastable[T1, T2] with
+      type Out = T1
+      inline def broadcast[V1, V2](t1: Tensor[T1, V1], t2: Tensor[T2, V2]): (Tensor[Out, V1], Tensor[Out, V2]) =
+        val t2b = t2.broadcast_to(t1)(using ev)
+        (t1.asInstanceOf[Tensor[Out, V1]], t2b.asInstanceOf[Tensor[Out, V2]])
+
+  trait StrictSubset[S <: Tuple, T <: Tuple]:
+    type Set = T
 
   object StrictSubset:
     given derive[S <: Tuple, T <: Tuple](using

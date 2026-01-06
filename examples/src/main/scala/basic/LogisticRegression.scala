@@ -55,9 +55,11 @@ object LogisticRegression:
     def calcMeanAndStd(t: Tensor2[Sample, Feature, Float]): (Tensor1[Feature, Float], Tensor1[Feature, Float]) =
       val mean = t.vmap(Axis[Feature])(_.mean)
       val std = zipvmap(Axis[Feature])(t, mean):
-        case (x, m) =>
+        case (feat, fMean) =>
+          val feat0 = feat -! fMean
+          val variance = (feat0).pow(2).mean
           val epsilon = 1e-6f
-          (x -! m).pow(2f).mean.sqrt + epsilon
+          (variance + epsilon).sqrt
           // x.vmap(Axis[Sample])(xi => (xi - m).pow(2)).mean.sqrt + epsilon
       (mean, std)
 

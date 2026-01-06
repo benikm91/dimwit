@@ -4,6 +4,7 @@ import dimwit.*
 import dimwit.Conversions.given
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.PythonException
+import dimwit.tensor.TupleHelpers.StrictSubset
 
 def opBlock[T](operation: String)(block: => T): Unit =
   val res = block
@@ -82,7 +83,8 @@ def tensorAPI(): Unit =
     println("BROADCASTING")
     opBlock("Axes broadcasting backward: ABCD + BCD") {
       py.exec("res = abcd + bcd")
-      BCD +! ABCD
+      summon[StrictSubset[(B, C, D), (A, B, C, D)]]
+      val res = BCD +! ABCD
       ABCD +! BCD
     }
     opBlock("Scalar broadcast: ABCD + Scalar") {

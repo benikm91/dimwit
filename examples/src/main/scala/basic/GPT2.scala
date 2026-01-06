@@ -308,14 +308,14 @@ object GPT2Inference:
       val cAttn = loadLinear(cAttnName, Axis[Embedding], Axis[QKV])
       val cProj = loadLinear(cProjName, Axis[Head |*| HeadValue], Axis[Embedding])
 
-      def splitWeightToHeads[L](t: Tensor2[Embedding, Head |*| L, Float], numHeads: Int)(using label: Label[L]): Tensor3[Head, Embedding, L, Float] =
+      inline def splitWeightToHeads[L](t: Tensor2[Embedding, Head |*| L, Float], numHeads: Int)(using label: Label[L]): Tensor3[Head, Embedding, L, Float] =
         val tLength = t.shape(Axis[Head |*| L])
         require(tLength % numHeads == 0, s"T length $tLength not divisible by numHeads $numHeads")
         t.rearrange(
           (Axis[Head], Axis[Embedding], Axis[L]),
           (Axis[Head] -> numHeads, Axis[L] -> (tLength / numHeads))
         )
-      def splitBiasToHeads[L](t: Tensor1[Head |*| L, Float], numHeads: Int)(using label: Label[L]): Tensor2[Head, L, Float] =
+      inline def splitBiasToHeads[L](t: Tensor1[Head |*| L, Float], numHeads: Int)(using label: Label[L]): Tensor2[Head, L, Float] =
         val tLength = t.shape(Axis[Head |*| L])
         require(tLength % numHeads == 0, s"T length $tLength not divisible by numHeads $numHeads")
         t.rearrange(

@@ -1,6 +1,6 @@
 package dimwit.jax
 
-import dimwit.tensor.{Tensor, Shape, Labels}
+import dimwit.tensor.{Tensor, Shape}
 import dimwit.jax.{Jax, JaxDType}
 import dimwit.autodiff.ToPyTree
 import me.shadaj.scalapy.py

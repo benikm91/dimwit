@@ -10,6 +10,26 @@ trait B derives Label
 trait C derives Label
 trait D derives Label
 
+object HelperGen:
+
+  def abGen(min: Int = 1, max: Int = 5): Gen[(Int, Int)] = for
+    a <- Gen.choose(min, max)
+    b <- Gen.choose(min, max)
+  yield (a, b)
+
+  def abcGen(min: Int = 1, max: Int = 5): Gen[(Int, Int, Int)] = for
+    a <- Gen.choose(min, max)
+    b <- Gen.choose(min, max)
+    c <- Gen.choose(min, max)
+  yield (a, b, c)
+
+  def abcdGen(min: Int = 1, max: Int = 5): Gen[(Int, Int, Int, Int)] = for
+    a <- Gen.choose(min, max)
+    b <- Gen.choose(min, max)
+    c <- Gen.choose(min, max)
+    d <- Gen.choose(min, max)
+  yield (a, b, c, d)
+
 object ShapeGen:
 
   val genShape0: Gen[Shape[EmptyTuple]] = Gen.const(Shape.empty)
@@ -33,6 +53,8 @@ object ShapeGen:
 object TensorGen:
 
   import ShapeGen.*
+
+  export HelperGen.*
 
   // --- Value Generation Abstraction ---
 
@@ -72,7 +94,7 @@ object TensorGen:
         given py.ConvertableToSeqElem[V] = tvg.conv
         Tensor.fromArray(shape, tvg.vtype)(data)
 
-  def genTensor[T <: Tuple: Labels, V](shape: Shape[T])(using tvg: TensorValueGen[V]): Gen[Tensor[T, V]] =
+  def genTensor[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V])(using tvg: TensorValueGen[V]): Gen[Tensor[T, V]] =
     genTensor(shape, tvg.defaultMin, tvg.defaultMax)
 
   // --- Shape Generators ---

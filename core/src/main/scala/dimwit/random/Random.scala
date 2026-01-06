@@ -43,7 +43,7 @@ object Random:
 
   object Normal:
 
-    class NormalFactory[T <: Tuple: Labels](shape: Shape[T]):
+    class NormalFactory[T <: Tuple](shape: Shape[T]):
       def apply(
           key: Key
       )(using
@@ -63,13 +63,14 @@ object Random:
           dtype = executionType.dtype.jaxType
         )
         val standardNormal = Tensor[T, Float](jaxValues)
-        standardNormal *! std +! mean
+        ???
+        // standardNormal *! std +! mean
 
-    def apply[T <: Tuple: Labels](shape: Shape[T]) = new NormalFactory[T](shape)
+    def apply[T <: Tuple](shape: Shape[T]) = new NormalFactory[T](shape)
 
   class Uniform:
 
-    class UniformFactory[T <: Tuple: Labels](shape: Shape[T]):
+    class UniformFactory[T <: Tuple](shape: Shape[T]):
 
       def apply(
           key: Key
@@ -94,4 +95,4 @@ object Random:
         )
         Tensor(jaxValues)
 
-    def apply[T <: Tuple: Labels](shape: Shape[T]) = new UniformFactory[T](shape)
+    def apply[T <: Tuple](shape: Shape[T]) = new UniformFactory[T](shape)
