@@ -9,6 +9,10 @@ import dimwit.random.Random
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Try
 import java.io.{FileInputStream, DataInputStream, BufferedInputStream}
+import java.io.RandomAccessFile
+import java.util.Base64
+import me.shadaj.scalapy.py
+import me.shadaj.scalapy.py.SeqConverters
 
 def binaryCrossEntropy[L: Label](
     logits: Tensor1[L, Float],
@@ -65,64 +69,59 @@ object MLPClassifierMNist:
 
   object MNISTLoader:
 
-    private val device = Device.GPU
+    private val pythonLoader = py.eval("lambda b64, shape: __import__('jax').numpy.array(__import__('numpy').frombuffer(__import__('base64').b64decode(b64), dtype=__import__('numpy').uint8).reshape(shape).astype(__import__('numpy').int32))")
 
-    private def readInt(dis: DataInputStream): Int = dis.readInt()
-    private def loadImagePixels[S <: Sample: Label](filename: String, maxImages: Option[Int] = None): Try[Tensor3[S, Height, Width, Float]] =
-      Try {
-        val dis = new DataInputStream(new BufferedInputStream(new FileInputStream(filename)))
-        try
-          val magic = readInt(dis)
-          if magic != 2051 then throw new IllegalArgumentException(s"Invalid magic number for images: $magic (expected 2051)")
-
-          val totalImages = readInt(dis)
-          val rows = readInt(dis)
-          val cols = readInt(dis)
-
-          val numImages = maxImages.map(max => math.min(max, totalImages)).getOrElse(totalImages)
-          println(s"Loading $numImages of $totalImages images (${rows}x${cols}) from $filename into memory as Tensor3")
-
-          // Read all pixel data at once
-          val totalPixels = numImages * rows * cols
-          val pixelBytes = new Array[Byte](totalPixels)
-          dis.readFully(pixelBytes)
-          // Convert bytes to floats with vectorized operation
-          val allPixels = pixelBytes.map(b => (b & 0xff) / 255.0f)
-          val shape = Shape(Axis[S] -> numImages, Axis[Height] -> rows, Axis[Width] -> cols)
-          val tensor = Tensor.fromArray(shape, VType[Float])(allPixels)
-          tensor.toDevice(device)
-        finally dis.close()
-      }
-
-    private def loadLabelsArray[S <: Sample: Label](filename: String, maxLabels: Option[Int] = None): Try[Tensor1[S, Int]] = Try {
-      val dis = new DataInputStream(new BufferedInputStream(new FileInputStream(filename)))
+    def loadImages[S <: Sample: Label](filename: String, maxImages: Option[Int] = None): Tensor3[S, Height, Width, Int] =
+      val file = new RandomAccessFile(filename, "r")
       try
-        val magic = readInt(dis)
-        if magic != 2049 then throw new IllegalArgumentException(s"Invalid magic number for labels: $magic (expected 2049)")
+        val magic = file.readInt()
+        if magic != 2051 then throw new IllegalArgumentException(s"Invalid magic: $magic")
 
-        val totalLabels = readInt(dis)
-        val numLabels = maxLabels.map(max => math.min(max, totalLabels)).getOrElse(totalLabels)
-        println(s"Loading $numLabels of $totalLabels labels from $filename into memory as Tensor1")
+        val totalImages = file.readInt()
+        val rows = file.readInt()
+        val cols = file.readInt()
 
-        val labels = Array.ofDim[Int](numLabels)
-        for i <- 0.until(numLabels) do labels(i) = dis.readUnsignedByte()
+        val numImages = maxImages.map(math.min(_, totalImages)).getOrElse(totalImages)
+        val totalPixels = numImages * rows * cols
 
-        // Create Tensor1 from labels - specify the label type correctly
-        val tensor = Tensor1.fromArray(Axis[S], VType[Int])(labels)
-        tensor.toDevice(device)
-      finally dis.close()
-    }
+        println(s"Scala-Loading $numImages images (${rows}x${cols}) from $filename...")
+
+        val pixels = new Array[Byte](totalPixels)
+        file.readFully(pixels)
+
+        val shape = Shape(Axis[S] -> numImages, Axis[Height] -> rows, Axis[Width] -> cols)
+        Tensor.fromArray(shape)(pixels)
+
+      finally
+        file.close()
+
+    def loadLabels[S <: Sample: Label](filename: String, maxLabels: Option[Int] = None): Tensor1[S, Int] =
+      val file = new RandomAccessFile(filename, "r")
+      try
+        val magic = file.readInt()
+        if magic != 2049 then throw new IllegalArgumentException(s"Invalid magic for labels: $magic (expected 2049)")
+
+        val totalLabels = file.readInt()
+        val numLabels = maxLabels.map(math.min(_, totalLabels)).getOrElse(totalLabels)
+
+        println(s"JAX-Loading $numLabels labels from $filename...")
+
+        val labels = new Array[Byte](numLabels)
+        file.readFully(labels)
+
+        val shape = Shape(Axis[S] -> numLabels)
+        Tensor.fromArray(shape)(labels)
+
+      finally
+        file.close()
 
     private def createDataset[S <: Sample: Label](imagesFile: String, labelsFile: String, maxSamples: Option[Int] = None): Try[Tuple2[Tensor[(S, Height, Width), Float], Tensor1[S, Int]]] =
-      for
-        imagePixels <- loadImagePixels[S](imagesFile, maxSamples)
-        labels <- loadLabelsArray[S](labelsFile, maxSamples)
-      yield
-        val numImages = imagePixels.shape(Axis[S])
-        val numLabels = labels.shape.size
-        if numImages != numLabels then throw new IllegalArgumentException(s"Mismatch: $numImages images vs $numLabels labels")
-        println(s"Created in-memory MNIST dataset with $numImages images")
-        (imagePixels, labels)
+      Try:
+        val images = loadImages[S](imagesFile, maxSamples)
+        val labels = loadLabels[S](labelsFile, maxSamples)
+        require(images.shape(Axis[S]) == labels.shape(Axis[S]), s"Number of images and labels must match")
+        val imagesFloat = images.asFloat /! 255.0f
+        (imagesFloat, labels)
 
     def createTrainingDataset(dataDir: String = "data", maxSamples: Option[Int] = None): Try[Tuple2[Tensor[(TrainSample, Height, Width), Float], Tensor1[TrainSample, Int]]] =
       val imagesFile = s"$dataDir/train-images-idx3-ubyte"
@@ -137,8 +136,8 @@ object MLPClassifierMNist:
   def main(args: Array[String]): Unit =
 
     val learningRate = 5e-2f
-    val numSamples = 5120 // 59904
-    val numTestSamples = 1024 // 9728
+    val numSamples = 59904
+    val numTestSamples = 9728
     val batchSize = 512
     val numEpochs = 100
     val (dataKey, trainKey) = Random.Key(42).split2()
