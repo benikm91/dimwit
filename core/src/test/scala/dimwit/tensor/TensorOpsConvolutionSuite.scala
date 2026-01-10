@@ -35,7 +35,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         VType[Float]
       )
 
-      val output = input.conv(Axis[InChannels])(kernel, stride = 1, padding = Padding.SAME)
+      val output = input.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride = 1, padding = Padding.SAME)
 
       // Output shape should be (batch=2, length=10, out_channels=4)
       output.shape(Axis[Batch]) shouldBe 2
@@ -67,7 +67,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         VType[Float]
       )
 
-      val output = input.conv(Axis[InChannels])(kernel, stride = 2, padding = Padding.VALID)
+      val output = input.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride = 2, padding = Padding.VALID)
 
       output.shape(Axis[Batch]) shouldBe 1
       output.shape(Axis[OutChannels]) shouldBe 1
@@ -107,7 +107,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         VType[Float]
       )
 
-      val output = input.conv(Axis[InChannels])(kernel, stride = 1, padding = Padding.SAME)
+      val output = input.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride = 1, padding = Padding.SAME)
 
       // Output shape should be (batch=2, height=8, width=8, out_channels=16)
       output.shape(Axis[Batch]) shouldBe 2
@@ -144,7 +144,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         VType[Float]
       )
 
-      val output = input.conv(Axis[InChannels])(kernel, stride = 2, padding = Padding.SAME)
+      val output = input.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride = 2, padding = Padding.SAME)
 
       output.shape(Axis[Batch]) shouldBe 1
       // With stride=2 and SAME padding, spatial dims should be halved
@@ -183,9 +183,10 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         Axis[InChannels] -> 1,
         Axis[OutChannels] -> 1
       )
-      val kernel = Tensor.ones(kernelShape, VType[Float])(kernelShape)
+      val kernelData = Array(1.0f, 1.0f, 1.0f, 1.0f)
+      val kernel = Tensor.fromArray(kernelShape, VType[Float])(kernelData)
 
-      val output = input.conv(Axis[InChannels])(kernel, stride = 1, padding = Padding.VALID)
+      val output = input.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride = 1, padding = Padding.VALID)
 
       // With VALID padding and 2x2 kernel, output should be 2x2
       // Output values:
@@ -220,5 +221,5 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       val kernel = Tensor.ones(Shape(Axis[A] -> 2, Axis[B] -> 2, Axis[Out] -> 1), VType[Float])
 
       an[IllegalArgumentException] should be thrownBy {
-        input.conv(Axis[B])(kernel)
+        input.conv(Axis[B], Axis[Out])(kernel)
       }

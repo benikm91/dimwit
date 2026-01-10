@@ -287,8 +287,10 @@ object TensorOps:
         *   - Kernel: (KernelSpatial..., InChannels, OutChannels)
         *   - Output: (Batch, OutSpatial..., OutChannels)
         *
-        * @param axis
+        * @param inChannelAxis
         *   The input channel axis to contract over
+        * @param outChannelAxis
+        *   The output channel axis for the result
         * @param kernel
         *   Convolutional kernel/filter
         * @param stride
@@ -296,17 +298,19 @@ object TensorOps:
         * @param padding
         *   Padding mode (default: Padding.SAME)
         */
-      def conv[InChannels, KernelShape <: Tuple: Labels](
-          axis: Axis[InChannels]
+      def conv[InChannels, OutChannels: Label, KernelShape <: Tuple: Labels](
+          inChannelAxis: Axis[InChannels],
+          outChannelAxis: Axis[OutChannels]
       )(
           kernel: Tensor[KernelShape, Float],
           stride: Int = 1,
           padding: Padding = Padding.SAME
       )(using
           inputChannelMatch: Last[T] =:= InChannels,
-          kernelChannelMatch: SecondToLast[KernelShape] =:= InChannels,
-          outputLabels: Labels[ReplaceLast[T, Last[KernelShape]]]
-      ): Tensor[ReplaceLast[T, Last[KernelShape]], V] =
+          kernelInMatch: SecondToLast[KernelShape] =:= InChannels,
+          kernelOutMatch: Last[KernelShape] =:= OutChannels,
+          outputLabels: Labels[ReplaceLast[T, OutChannels]]
+      ): Tensor[ReplaceLast[T, OutChannels], V] =
         val inputRank = input.shape.rank
         val kernelRank = kernel.shape.rank
 
