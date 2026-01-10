@@ -283,9 +283,11 @@ object TensorOps:
       /** Convolutional operation using JAX's conv_general_dilated
         *
         * Expected shapes:
-        *   - Input: (Batch, Spatial..., InChannels) - channels-last format
+        *   - Input: (..., Spatial..., InChannels) - channels-last format
         *   - Kernel: (KernelSpatial..., InChannels, OutChannels)
-        *   - Output: (Batch, OutSpatial..., OutChannels)
+        *   - Output: (..., Spatial..., OutChannels)
+        *
+        * The first dimension(s) before spatial can be anything (batch, sequence, etc.) For 1D conv: input is (D1, Length, InChannels) For 2D conv: input is (D1, Height, Width, InChannels)
         *
         * @param inChannelAxis
         *   The input channel axis to contract over
@@ -314,16 +316,14 @@ object TensorOps:
         val inputRank = input.shape.rank
         val kernelRank = kernel.shape.rank
 
-        require(inputRank >= 3, s"Input must have at least 3 dimensions (batch, spatial..., channels), got $inputRank")
-        require(kernelRank >= 2, s"Kernel must have at least 2 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
+        require(kernelRank >= 3, s"Kernel must have at least 3 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
 
-        val spatialDims = inputRank - 2
         val kernelSpatialDims = kernelRank - 2
+        val minInputRank = kernelSpatialDims + 1
 
-        require(
-          spatialDims == kernelSpatialDims,
-          s"Number of spatial dimensions must match: input has $spatialDims spatial dims, kernel has $kernelSpatialDims"
-        )
+        require(inputRank >= minInputRank, s"Input must have at least $minInputRank dimensions for ${kernelSpatialDims}D convolution (got $inputRank)")
+
+        val leadingDims = inputRank - kernelSpatialDims - 1
 
         // Verify input channels match between input and kernel
         val inputChannels = input.shape.dimensions(inputRank - 1)
@@ -333,29 +333,43 @@ object TensorOps:
           s"Input channels mismatch: input has $inputChannels channels, kernel expects $kernelInChannels"
         )
 
-        val strides = Seq.fill(spatialDims)(stride)
+        val strides = Seq.fill(kernelSpatialDims)(stride)
 
         // Build dimension_numbers for channels-last format
-        // JAX dimension_numbers uses arbitrary characters to specify layout positions
-        // For N spatial dims, we use first N characters from this string
-        val spatialChars = (0 until spatialDims).map(i => ('A' + i).toChar).mkString
-        val lhsSpec = s"N${spatialChars}C" // Input: (Batch, Spatial..., InChannels)
+        // JAX requires input and kernel to have matching rank, so if no leading dims,
+        // we add a temporary batch dimension
+        val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
+
+        val (actualInput, needsSqueeze) = if leadingDims == 0 then
+          // Add temporary batch dimension at the front
+          val expandedShape = 1 +: input.shape.dimensions
+          (Jax.jnp.reshape(input.jaxValue, expandedShape.toPythonProxy), true)
+        else
+          (input.jaxValue, false)
+
+        val lhsSpec = s"N${spatialChars}C" // Input: always has batch dimension 'N'
         val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
-        val outSpec = s"N${spatialChars}C" // Output: (Batch, Spatial..., OutChannels)
+        val outSpec = s"N${spatialChars}C" // Output: always has batch dimension 'N'
 
         val dimNumbers = py.Dynamic.global.tuple(
           Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
         )
 
         val convResult = Jax.lax.conv_general_dilated(
-          lhs = input.jaxValue,
+          lhs = actualInput,
           rhs = kernel.jaxValue,
           window_strides = strides.toPythonProxy,
           padding = padding.toString,
           dimension_numbers = dimNumbers
         )
 
-        Tensor(convResult)
+        val finalResult = if needsSqueeze then
+          // Remove the temporary batch dimension
+          Jax.jnp.squeeze(convResult, axis = 0)
+        else
+          convResult
+
+        Tensor(finalResult)
 
   end Convolution
   export Convolution.conv, Convolution.Padding

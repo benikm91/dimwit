@@ -11,8 +11,7 @@ import dimwit.stats.Normal
 object ConvLayer:
 
   case class Params[InChannels, OutChannels, KernelShape <: Tuple](
-      kernel: Tensor[KernelShape, Float],
-      bias: Tensor1[OutChannels, Float]
+      kernel: Tensor[KernelShape, Float]
   )
 
   object Params:
@@ -25,18 +24,14 @@ object ConvLayer:
       *   Random key for parameter initialization
       * @param kernelShape
       *   Shape of the convolutional kernel, e.g., (KernelH, KernelW, InChannels, OutChannels) for 2D conv
-      * @param outChannelDim
-      *   Dimension specification for output channels
       */
     def apply[InChannels: Label, OutChannels: Label, KernelShape <: Tuple: Labels](paramKey: Key)(
-        kernelShape: Shape[KernelShape],
-        outChannelDim: Dim[OutChannels]
+        kernelShape: Shape[KernelShape]
     )(using
         executionType: ExecutionType[Float]
     ): Params[InChannels, OutChannels, KernelShape] =
       Params(
-        kernel = Normal.standardNormal(kernelShape).sample(paramKey),
-        bias = Tensor.zeros(Shape(outChannelDim), VType[Float])
+        kernel = Normal.standardNormal(kernelShape).sample(paramKey)
       )
 
 case class ConvLayer[InChannels: Label, OutChannels: Label, KernelShape <: Tuple: Labels](
@@ -44,9 +39,9 @@ case class ConvLayer[InChannels: Label, OutChannels: Label, KernelShape <: Tuple
     stride: Int = 1,
     padding: Padding = Padding.SAME
 ):
-  /** Apply convolution to input tensor
+  /** Apply convolution to input tensor (like LinearLayer)
     *
-    * Input should have shape (Batch, Spatial..., InChannels) Output will have shape (Batch, Spatial..., OutChannels)
+    * Input: (Spatial..., InChannels) Output: (Spatial..., OutChannels)
     */
   def apply[InputShape <: Tuple: Labels](x: Tensor[InputShape, Float])(using
       inputChannelMatch: Last[InputShape] =:= InChannels,
@@ -54,5 +49,4 @@ case class ConvLayer[InChannels: Label, OutChannels: Label, KernelShape <: Tuple
       kernelOutMatch: Last[KernelShape] =:= OutChannels,
       outputLabels: Labels[ReplaceLast[InputShape, OutChannels]]
   ): Tensor[ReplaceLast[InputShape, OutChannels], Float] =
-    import params.{kernel, bias}
-    x.conv(Axis[InChannels], Axis[OutChannels])(kernel, stride, padding) +! bias
+    x.conv(Axis[InChannels], Axis[OutChannels])(params.kernel, stride, padding)
