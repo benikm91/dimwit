@@ -141,3 +141,18 @@ object TupleHelpers:
     ): PrimeConcat.Aux[R1, R2, Tuple.Concat[R1, Suffix]] =
       new PrimeConcat[R1, R2]:
         type Out = Tuple.Concat[R1, Suffix]
+
+  /** Get the last element of a tuple */
+  type Last[T <: Tuple] = T match
+    case h *: EmptyTuple => h
+    case h *: tail       => Last[tail]
+
+  /** Get the second-to-last element of a tuple */
+  type SecondToLast[T <: Tuple] = T match
+    case a *: b *: EmptyTuple => a
+    case h *: tail            => SecondToLast[tail]
+
+  /** Replace the last element of a tuple with a new type */
+  type ReplaceLast[T <: Tuple, New] <: Tuple = T match
+    case h *: EmptyTuple => New *: EmptyTuple
+    case h *: tail       => h *: ReplaceLast[tail, New]

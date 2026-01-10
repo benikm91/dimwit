@@ -6,7 +6,7 @@ import scala.util.NotGiven
 
 import dimwit.jax.{Jax, Einops}
 import dimwit.tensor.{Label, Labels}
-import dimwit.tensor.TupleHelpers.{Subset, StrictSubset, PrimeConcat}
+import dimwit.tensor.TupleHelpers.{Subset, StrictSubset, PrimeConcat, ReplaceLast, Last, SecondToLast}
 import dimwit.tensor.ShapeTypeHelpers.{AxisRemover, AxesRemover, SharedAxisRemover, AxisReplacer, AxesConditionalRemover, UnwrapAxes}
 import dimwit.{~, `|*|`, `|+|`}
 
@@ -272,6 +272,89 @@ object TensorOps:
         Tensor(Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = axesPair))
 
   end Contraction
+
+  object Convolution:
+
+    enum Padding:
+      case SAME, VALID
+
+    extension [T <: Tuple: Labels, V: IsFloat](input: Tensor[T, V])
+
+      /** Convolutional operation using JAX's conv_general_dilated
+        *
+        * Expected shapes:
+        *   - Input: (Batch, Spatial..., InChannels) - channels-last format
+        *   - Kernel: (KernelSpatial..., InChannels, OutChannels)
+        *   - Output: (Batch, OutSpatial..., OutChannels)
+        *
+        * @param axis
+        *   The input channel axis to contract over
+        * @param kernel
+        *   Convolutional kernel/filter
+        * @param stride
+        *   Uniform stride for all spatial dimensions (default: 1)
+        * @param padding
+        *   Padding mode (default: Padding.SAME)
+        */
+      def conv[InChannels, KernelShape <: Tuple: Labels](
+          axis: Axis[InChannels]
+      )(
+          kernel: Tensor[KernelShape, Float],
+          stride: Int = 1,
+          padding: Padding = Padding.SAME
+      )(using
+          inputChannelMatch: Last[T] =:= InChannels,
+          kernelChannelMatch: SecondToLast[KernelShape] =:= InChannels,
+          outputLabels: Labels[ReplaceLast[T, Last[KernelShape]]]
+      ): Tensor[ReplaceLast[T, Last[KernelShape]], V] =
+        val inputRank = input.shape.rank
+        val kernelRank = kernel.shape.rank
+
+        require(inputRank >= 3, s"Input must have at least 3 dimensions (batch, spatial..., channels), got $inputRank")
+        require(kernelRank >= 2, s"Kernel must have at least 2 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
+
+        val spatialDims = inputRank - 2
+        val kernelSpatialDims = kernelRank - 2
+
+        require(
+          spatialDims == kernelSpatialDims,
+          s"Number of spatial dimensions must match: input has $spatialDims spatial dims, kernel has $kernelSpatialDims"
+        )
+
+        // Verify input channels match between input and kernel
+        val inputChannels = input.shape.dimensions(inputRank - 1)
+        val kernelInChannels = kernel.shape.dimensions(kernelRank - 2)
+        require(
+          inputChannels == kernelInChannels,
+          s"Input channels mismatch: input has $inputChannels channels, kernel expects $kernelInChannels"
+        )
+
+        val strides = Seq.fill(spatialDims)(stride)
+
+        // Build dimension_numbers for channels-last format
+        // JAX dimension_numbers uses arbitrary characters to specify layout positions
+        // For N spatial dims, we use first N characters from this string
+        val spatialChars = (0 until spatialDims).map(i => ('A' + i).toChar).mkString
+        val lhsSpec = s"N${spatialChars}C" // Input: (Batch, Spatial..., InChannels)
+        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
+        val outSpec = s"N${spatialChars}C" // Output: (Batch, Spatial..., OutChannels)
+
+        val dimNumbers = py.Dynamic.global.tuple(
+          Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
+        )
+
+        val convResult = Jax.lax.conv_general_dilated(
+          lhs = input.jaxValue,
+          rhs = kernel.jaxValue,
+          window_strides = strides.toPythonProxy,
+          padding = padding.toString,
+          dimension_numbers = dimNumbers
+        )
+
+        Tensor(convResult)
+
+  end Convolution
+  export Convolution.conv, Convolution.Padding
 
   object LinearAlgebra:
 
