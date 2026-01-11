@@ -336,43 +336,122 @@ object TensorOps:
         val strides = Seq.fill(kernelSpatialDims)(stride)
 
         // Build dimension_numbers for channels-last format
-        // JAX requires input and kernel to have matching rank, so if no leading dims,
-        // we add a temporary batch dimension
+        // JAX handles arbitrary leading dimensions naturally
         val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
+        val leadingChars = (0 until leadingDims).map(i => ('N' + i).toChar).mkString
 
-        val (actualInput, needsSqueeze) = if leadingDims == 0 then
-          // Add temporary batch dimension at the front
-          val expandedShape = 1 +: input.shape.dimensions
-          (Jax.jnp.reshape(input.jaxValue, expandedShape.toPythonProxy), true)
-        else
-          (input.jaxValue, false)
-
-        val lhsSpec = s"N${spatialChars}C" // Input: always has batch dimension 'N'
+        val lhsSpec = s"${leadingChars}${spatialChars}C" // Input: (Leading..., Spatial..., Channels)
         val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
-        val outSpec = s"N${spatialChars}C" // Output: always has batch dimension 'N'
+        val outSpec = s"${leadingChars}${spatialChars}C" // Output: (Leading..., Spatial..., Channels)
 
         val dimNumbers = py.Dynamic.global.tuple(
           Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
         )
 
         val convResult = Jax.lax.conv_general_dilated(
-          lhs = actualInput,
+          lhs = input.jaxValue,
           rhs = kernel.jaxValue,
           window_strides = strides.toPythonProxy,
           padding = padding.toString,
           dimension_numbers = dimNumbers
         )
 
-        val finalResult = if needsSqueeze then
-          // Remove the temporary batch dimension
-          Jax.jnp.squeeze(convResult, axis = 0)
-        else
-          convResult
+        Tensor(convResult)
 
-        Tensor(finalResult)
+      /** Transposed convolutional operation (deconvolution) using JAX's conv_transpose
+        *
+        * This is the adjoint operator to conv. Expected shapes:
+        *   - Input: (..., Spatial..., OutChannels) - channels-last format
+        *   - Kernel: (KernelSpatial..., InChannels, OutChannels) - same kernel as conv
+        *   - Output: (..., Spatial..., InChannels)
+        *
+        * Note: Input has OutChannels (matching conv's output space), output has InChannels (matching conv's input space). This makes transposeConv the proper mathematical adjoint: <conv(x,k), y> = <x, transposeConv(y,k)>
+        *
+        * The first dimension(s) before spatial can be anything (batch, sequence, etc.)
+        *
+        * Transpose convolution upsamples the spatial dimensions, performing the inverse operation of regular convolution.
+        *
+        * @param inChannelAxis
+        *   The input channel axis (which will be OutChannels from the forward conv)
+        * @param outChannelAxis
+        *   The output channel axis for the result (which will be InChannels from forward conv)
+        * @param kernel
+        *   Convolutional kernel/filter (same kernel as used in forward conv)
+        * @param stride
+        *   Uniform stride for all spatial dimensions (default: 1)
+        * @param padding
+        *   Padding mode (default: Padding.SAME)
+        */
+      def transposeConv[InChannels: Label, OutChannels, KernelShape <: Tuple: Labels](
+          inChannelAxis: Axis[OutChannels],
+          outChannelAxis: Axis[InChannels]
+      )(
+          kernel: Tensor[KernelShape, Float],
+          stride: Int = 1,
+          padding: Padding = Padding.SAME
+      )(using
+          inputChannelMatch: Last[T] =:= OutChannels,
+          kernelInMatch: SecondToLast[KernelShape] =:= InChannels,
+          kernelOutMatch: Last[KernelShape] =:= OutChannels,
+          outputLabels: Labels[ReplaceLast[T, InChannels]]
+      ): Tensor[ReplaceLast[T, InChannels], V] =
+        val inputRank = input.shape.rank
+        val kernelRank = kernel.shape.rank
+
+        require(kernelRank >= 3, s"Kernel must have at least 3 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
+
+        val kernelSpatialDims = kernelRank - 2
+        val minInputRank = kernelSpatialDims + 1
+
+        require(inputRank >= minInputRank, s"Input must have at least $minInputRank dimensions for ${kernelSpatialDims}D convolution (got $inputRank)")
+
+        val leadingDims = inputRank - kernelSpatialDims - 1
+
+        // Verify input channels match between input and kernel
+        // For transposeConv: input has OutChannels, should match kernel's last dimension (OutChannels)
+        val inputChannels = input.shape.dimensions(inputRank - 1)
+        val kernelOutChannels = kernel.shape.dimensions(kernelRank - 1)
+        require(
+          inputChannels == kernelOutChannels,
+          s"Input channels mismatch: input has $inputChannels channels (OutChannels), kernel expects $kernelOutChannels"
+        )
+
+        val strides = Seq.fill(kernelSpatialDims)(stride)
+
+        // Build dimension_numbers for channels-last format
+        // JAX handles arbitrary leading dimensions naturally
+        val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
+        val leadingChars = (0 until leadingDims).map(i => ('N' + i).toChar).mkString
+
+        val lhsSpec = s"${leadingChars}${spatialChars}C" // Input: (Leading..., Spatial..., Channels)
+        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels) - same as forward conv
+        val outSpec = s"${leadingChars}${spatialChars}C" // Output: (Leading..., Spatial..., Channels)
+
+        val dimNumbers = py.Dynamic.global.tuple(
+          Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
+        )
+
+        // For the adjoint property <conv(x,k), y> = <x, transposeConv(y,k)>, we need to:
+        // 1. Swap kernel channels: (Spatial..., InChannels, OutChannels) -> (Spatial..., OutChannels, InChannels)
+        // 2. Flip all spatial dimensions
+        var kernelAdjoint = Jax.jnp.swapaxes(kernel.jaxValue, kernelRank - 2, kernelRank - 1)
+
+        // Flip all spatial dimensions (0 to kernelSpatialDims-1)
+        for i <- 0 until kernelSpatialDims do
+          kernelAdjoint = Jax.jnp.flip(kernelAdjoint, axis = i)
+
+        val convResult = Jax.lax.conv_transpose(
+          lhs = input.jaxValue,
+          rhs = kernelAdjoint,
+          strides = strides.toPythonProxy,
+          padding = padding.toString,
+          dimension_numbers = dimNumbers
+        )
+
+        Tensor(convResult)
 
   end Convolution
-  export Convolution.conv, Convolution.Padding
+  export Convolution.conv, Convolution.transposeConv, Convolution.Padding
 
   object LinearAlgebra:
 
