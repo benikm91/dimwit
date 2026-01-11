@@ -325,6 +325,19 @@ object TensorOps:
 
         val leadingDims = inputRank - kernelSpatialDims - 1
 
+        // JAX's conv_general_dilated requires matching rank semantics
+        // If we have no leading dimensions (e.g., just (Spatial..., Channels)),
+        // we need to add a dummy batch dimension for JAX
+        val needsBatchDim = leadingDims == 0
+        val actualInputJax = if needsBatchDim then
+          // Add a dummy leading dimension: shape becomes (1, Spatial..., Channels)
+          val newShape = 1 +: input.shape.dimensions
+          Jax.jnp.reshape(input.jaxValue, newShape.toPythonProxy)
+        else
+          input.jaxValue
+
+        val actualLeadingDims = if needsBatchDim then 1 else leadingDims
+
         // Verify input channels match between input and kernel
         val inputChannels = input.shape.dimensions(inputRank - 1)
         val kernelInChannels = kernel.shape.dimensions(kernelRank - 2)
@@ -336,9 +349,8 @@ object TensorOps:
         val strides = Seq.fill(kernelSpatialDims)(stride)
 
         // Build dimension_numbers for channels-last format
-        // JAX handles arbitrary leading dimensions naturally
         val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
-        val leadingChars = (0 until leadingDims).map(i => ('N' + i).toChar).mkString
+        val leadingChars = (0 until actualLeadingDims).map(i => ('N' + i).toChar).mkString
 
         val lhsSpec = s"${leadingChars}${spatialChars}C" // Input: (Leading..., Spatial..., Channels)
         val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
@@ -349,14 +361,22 @@ object TensorOps:
         )
 
         val convResult = Jax.lax.conv_general_dilated(
-          lhs = input.jaxValue,
+          lhs = actualInputJax,
           rhs = kernel.jaxValue,
           window_strides = strides.toPythonProxy,
           padding = padding.toString,
           dimension_numbers = dimNumbers
         )
 
-        Tensor(convResult)
+        // Remove the dummy batch dimension if we added one
+        val finalResultJax = if needsBatchDim then
+          // Squeeze out the first dimension by getting the shape and removing first element
+          val tempShape = Jax.jnp.shape(convResult).bracketAccess(py.Dynamic.global.slice(1, py.Dynamic.global.None))
+          Jax.jnp.reshape(convResult, tempShape)
+        else
+          convResult
+
+        Tensor[ReplaceLast[T, OutChannels], V](finalResultJax)
 
       /** Transposed convolutional operation (deconvolution) using JAX's conv_transpose
         *
@@ -407,6 +427,18 @@ object TensorOps:
 
         val leadingDims = inputRank - kernelSpatialDims - 1
 
+        // JAX's conv_transpose requires matching rank semantics
+        // If we have no leading dimensions, add a dummy batch dimension
+        val needsBatchDim = leadingDims == 0
+        val actualInputJax = if needsBatchDim then
+          // Add a dummy leading dimension: shape becomes (1, Spatial..., Channels)
+          val newShape = 1 +: input.shape.dimensions
+          Jax.jnp.reshape(input.jaxValue, newShape.toPythonProxy)
+        else
+          input.jaxValue
+
+        val actualLeadingDims = if needsBatchDim then 1 else leadingDims
+
         // Verify input channels match between input and kernel
         // For transposeConv: input has OutChannels, should match kernel's last dimension (OutChannels)
         val inputChannels = input.shape.dimensions(inputRank - 1)
@@ -419,9 +451,8 @@ object TensorOps:
         val strides = Seq.fill(kernelSpatialDims)(stride)
 
         // Build dimension_numbers for channels-last format
-        // JAX handles arbitrary leading dimensions naturally
         val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
-        val leadingChars = (0 until leadingDims).map(i => ('N' + i).toChar).mkString
+        val leadingChars = (0 until actualLeadingDims).map(i => ('N' + i).toChar).mkString
 
         val lhsSpec = s"${leadingChars}${spatialChars}C" // Input: (Leading..., Spatial..., Channels)
         val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels) - same as forward conv
@@ -441,14 +472,22 @@ object TensorOps:
           kernelAdjoint = Jax.jnp.flip(kernelAdjoint, axis = i)
 
         val convResult = Jax.lax.conv_transpose(
-          lhs = input.jaxValue,
+          lhs = actualInputJax,
           rhs = kernelAdjoint,
           strides = strides.toPythonProxy,
           padding = padding.toString,
           dimension_numbers = dimNumbers
         )
 
-        Tensor(convResult)
+        // Remove the dummy batch dimension if we added one
+        val finalResultJax = if needsBatchDim then
+          // Squeeze out the first dimension by getting the shape and removing first element
+          val tempShape = Jax.jnp.shape(convResult).bracketAccess(py.Dynamic.global.slice(1, py.Dynamic.global.None))
+          Jax.jnp.reshape(convResult, tempShape)
+        else
+          convResult
+
+        Tensor[ReplaceLast[T, InChannels], V](finalResultJax)
 
   end Convolution
   export Convolution.conv, Convolution.transposeConv, Convolution.Padding
