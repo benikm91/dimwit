@@ -9,7 +9,7 @@ import nn.ActivationFunctions.*
 trait Vocab derives Label // 50257
 trait Embedding derives Label // 768
 trait Context derives Label // 1024
-trait EmbeddingMixer derives Label // 3072
+trait EmbeddingMixed derives Label // 3072
 
 trait Batch derives Label
 
@@ -42,12 +42,9 @@ case class MultiHeadAttentionParams(
 ) derives ToPyTree
 
 case class EmbeddingMixerParams(
-    c_fc: LinearLayerParams[Embedding, EmbeddingMixer],
-    c_proj: LinearLayerParams[EmbeddingMixer, Embedding]
+    c_fc: LinearLayerParams[Embedding, EmbeddingMixed],
+    c_proj: LinearLayerParams[EmbeddingMixed, Embedding]
 )
-
-type WTEParams = Tensor2[Vocab, Embedding, Float]
-type WPEParams = Tensor2[Context, Embedding, Float]
 
 case class TransformerLayerParams(
     ln1: LayerNormalizationParams,
@@ -57,8 +54,8 @@ case class TransformerLayerParams(
 )
 
 case class GPT2Params(
-    vocabularyEmbeddings: WTEParams,
-    positionalEmbeddings: WPEParams,
+    vocabularyEmbeddings: Tensor2[Vocab, Embedding, Float],
+    positionalEmbeddings: Tensor2[Context, Embedding, Float],
     layers: List[TransformerLayerParams],
     outputNormalization: LayerNormalizationParams,
     output: ProjectionLayerParams[Embedding, Vocab]
@@ -66,8 +63,8 @@ case class GPT2Params(
 
 object GPT2Params:
   def apply(
-      positionalEmbeddings: WPEParams,
-      vocabularyEmbeddings: WTEParams,
+      vocabularyEmbeddings: Tensor2[Vocab, Embedding, Float],
+      positionalEmbeddings: Tensor2[Context, Embedding, Float],
       layers: List[TransformerLayerParams],
       outputNormalization: LayerNormalizationParams
   ): GPT2Params =
@@ -374,8 +371,8 @@ object GPT2Inference:
       val ln1 = loadLN(s"$prefix.ln_1")
       val ln2 = loadLN(s"$prefix.ln_2")
       val attn = loadAttnWeights(s"$prefix.attn.c_attn", s"$prefix.attn.c_proj")
-      val c_fc = loadLinear(s"$prefix.mlp.c_fc", Axis[Embedding], Axis[EmbeddingMixer])
-      val c_proj = loadLinear(s"$prefix.mlp.c_proj", Axis[EmbeddingMixer], Axis[Embedding])
+      val c_fc = loadLinear(s"$prefix.mlp.c_fc", Axis[Embedding], Axis[EmbeddingMixed])
+      val c_proj = loadLinear(s"$prefix.mlp.c_proj", Axis[EmbeddingMixed], Axis[Embedding])
       val mlp = EmbeddingMixerParams(c_fc, c_proj)
       println(s"Successfully loaded layer $i parameters")
 
@@ -383,7 +380,7 @@ object GPT2Inference:
     }.toList
     println("Successfully loaded all layers parameters")
 
-    val params = GPT2Params(wpe, wte, layers, outputNormalization)
+    val params = GPT2Params(wte, wpe, layers, outputNormalization)
     val gpt2 = GPT2(params)
     val inference = Inference(gpt2, Tokenizer(tiktoken.get_encoding("gpt2")))
     // val stream = inference("Hello, my name is Beni. Who ")
