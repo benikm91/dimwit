@@ -700,6 +700,12 @@ object TensorOps:
           newLabels: Labels[UnwrapAxes[Axes]],
           extractor: DimExtractor[Dims]
       ): Tensor[UnwrapAxes[Axes], V] =
+        def cleanPatternPrime(pattern: String): String =
+          // Support dimwit.Prime by replacing ' with "Prime"
+          pattern.replaceAll(
+            "'",
+            "Prime"
+          )
         def createEinopsPattern(fromPattern: String, toPattern: String): String =
           def cleanPatternStar(pattern: String): String =
             // to replace all a*b*c in pattern with (a b c), example:
@@ -717,17 +723,21 @@ object TensorOps:
               _.group(1).replace("+", "_")
             )
           def cleanPattern(pattern: String): String =
-            cleanPatternPlus(cleanPatternStar(pattern))
+            cleanPatternPlus(cleanPatternStar(cleanPatternPrime(pattern)))
           s"${cleanPattern(fromPattern)} -> ${cleanPattern(toPattern)}"
         val fromPattern = tensor.shape.labels.mkString(" ")
         val toPattern = newLabels.names.mkString(" ")
         val pattern = createEinopsPattern(fromPattern, toPattern)
         val dimSizesMap = extractor.extract(dims)
+        val cleanDimSizesMap = dimSizesMap.map { case (k, v) =>
+          val newKey = cleanPatternPrime(k)
+          (newKey, v)
+        }
         Tensor(
           Einops.rearrange(
             tensor.jaxValue,
             pattern,
-            kwargsMap = dimSizesMap
+            kwargsMap = cleanDimSizesMap
           )
         )
 
