@@ -70,7 +70,7 @@ object Decoder:
       outputLayer: LinearLayer.Params[DHidden2, ReconstructedFeature]
   )
 
-case class AE(params: AE.Params):
+case class Autoencoder(params: Autoencoder.Params):
 
   val encoder = Encoder(params.encoderParams)
   val decoder = Decoder(params.decoderParams)
@@ -86,19 +86,19 @@ case class AE(params: AE.Params):
     val reconLoss = -((original * (reconstructed +! eps).log) + ((Tensor0(1f) -! original) * (1f -! reconstructed +! eps).log)).sum
     reconLoss
 
-object AE:
+object Autoencoder:
   case class Params(
       encoderParams: Encoder.EncoderParams,
       decoderParams: Decoder.DecoderParams
   )
   object Params:
-    def apply(params: AE.Params): Params =
+    def apply(params: Autoencoder.Params): Params =
       Params(
         params.encoderParams,
         params.decoderParams
       )
 
-object AEExample:
+object AutoencoderExample:
 
   def main(args: Array[String]): Unit =
 
@@ -152,8 +152,8 @@ object AEExample:
     // better training stability.
     // TODO linear layer et al. should support custom initializers
     // or xavier initialization
-    val initialParams = AE.Params(encoderParams, decoderParams)
-    val scaledInitialParams = FloatTensorTree[AE.Params].map(
+    val initialParams = Autoencoder.Params(encoderParams, decoderParams)
+    val scaledInitialParams = FloatTensorTree[Autoencoder.Params].map(
       initialParams,
       [T <: Tuple] => (n: Labels[T]) ?=> (t: Tensor[T, Float]) => t *! Tensor0(0.1f)
     )
@@ -162,21 +162,21 @@ object AEExample:
      * Training loop
      * */
 
-    def loss(trainData: Tensor3[Sample, Height, Width, Float])(params: AE.Params): Tensor0[Float] =
-      val ae = AE(params)
+    def loss(trainData: Tensor3[Sample, Height, Width, Float])(params: Autoencoder.Params): Tensor0[Float] =
+      val ae = Autoencoder(params)
       trainData
         .vmap(Axis[Sample])(sample => ae.loss(sample.ravel))
         .mean
 
     val batches = trainX.chunk(Axis[TrainSample], numSamples / batchSize)
-    def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: AE.Params): AE.Params =
+    def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: Autoencoder.Params): Autoencoder.Params =
       val df = Autodiff.grad(loss(batch))
       GradientDescent(df, learningRate).step(params)
 
     // val jittedGradientStep = gradientStep
     val jittedGradientStep = jit(gradientStep, Map("donate_argnums" -> Tuple1(1)))
 
-    def trainEpoch(params: AE.Params): AE.Params =
+    def trainEpoch(params: Autoencoder.Params): Autoencoder.Params =
       batches.foldLeft(params):
         case (batchParams, batch) =>
           jittedGradientStep(batch, batchParams)
@@ -200,7 +200,7 @@ object AEExample:
     /*
      * Evaluation
      * */
-    val ae = AE(trainedParams)
+    val ae = Autoencoder(trainedParams)
 
     val reconstructed = testX
       .slice(Axis[TestSample] -> (0 until 64))
