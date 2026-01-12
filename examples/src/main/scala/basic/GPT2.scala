@@ -73,7 +73,7 @@ object GPT2Params:
     )
     GPT2Params(vocabularyEmbeddings, positionalEmbeddings, layers, outputNormalization, outputParams)
 
-case class GPT2(params: GPT2Params) extends (Tensor[(Batch, Context), Int] => Tensor[(Batch, Context), Int]):
+case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Tensor2[Batch, Context, Int]):
 
   private case class LinearLayer[In: Label, Out: Label](params: LinearLayerParams[In, Out]) extends (Tensor1[In, Float] => Tensor1[Out, Float]):
     override def apply(x: Tensor1[In, Float]): Tensor1[Out, Float] =
@@ -153,7 +153,8 @@ case class GPT2(params: GPT2Params) extends (Tensor[(Batch, Context), Int] => Te
 
   private case class TransformerBlock(layers: List[TransformerLayer]) extends (Tensor2[Context, Embedding, Float] => Tensor2[Context, Embedding, Float]):
     override def apply(t: Tensor2[Context, Embedding, Float]): Tensor2[Context, Embedding, Float] =
-      layers.foldLeft(t) { (t, layer) => layer(t) }
+      layers.foldLeft(t):
+        case (t, layer) => layer(t)
 
   case class Embedder(vocabularyEmbeddings: Tensor2[Vocab, Embedding, Float], positionalEmbeddings: Tensor2[Context, Embedding, Float]) extends (Tensor1[Context, Int] => Tensor2[Context, Embedding, Float]):
     override def apply(tokens: Tensor1[Context, Int]): Tensor2[Context, Embedding, Float] =
@@ -170,18 +171,18 @@ case class GPT2(params: GPT2Params) extends (Tensor[(Batch, Context), Int] => Te
   private val transformerBlock = TransformerBlock(params.layers.map(TransformerLayer(_)))
   private val outputLayer = OutputLayer(params.outputNormalization, params.output)
 
-  def logits(inputTokens: Tensor[(Batch, Context), Int]): Tensor[(Batch, Context, Vocab), Float] =
-    inputTokens.vmap(Axis[Batch])(tokens =>
-      val startEmbeddings = embedder(tokens)
-      val endEmbeddings = transformerBlock(startEmbeddings)
-      endEmbeddings.vmap(Axis[Context])(outputLayer)
-    )
+  def logits(inputTokens: Tensor2[Batch, Context, Int]): Tensor3[Batch, Context, Vocab, Float] =
+    inputTokens.vmap(Axis[Batch]):
+      case tokens =>
+        val startEmbeddings = embedder(tokens)
+        val endEmbeddings = transformerBlock(startEmbeddings)
+        endEmbeddings.vmap(Axis[Context])(outputLayer)
 
-  def probits(inputTokens: Tensor[(Batch, Context), Int]): Tensor[(Batch, Context, Vocab), Float] =
+  def probits(inputTokens: Tensor2[Batch, Context, Int]): Tensor3[Batch, Context, Vocab, Float] =
     logits(inputTokens).vapply(Axis[Vocab])(softmax)
 
-  def apply(inputTokens: Tensor[(Batch, Context), Int]): Tensor[(Batch, Context), Int] =
-    logits(inputTokens).argmax(Axis[Vocab])
+  def apply(inputTokens: Tensor2[Batch, Context, Int]): Tensor2[Batch, Context, Int] =
+    probits(inputTokens).argmax(Axis[Vocab])
 
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters

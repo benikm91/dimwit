@@ -18,8 +18,8 @@ import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
 trait Hidden derives Label
 trait Output derives Label
 
-type SourceFeature = Height |*| Width
-type ReconstructedFeature = Height |*| Width
+type Pixel = Height |*| Width
+type ReconstructedPixel = Height |*| Width
 
 trait EHidden1 derives Label
 trait EHidden2 derives Label
@@ -31,43 +31,40 @@ trait DHidden2 derives Label
 
 trait Batch derives Label
 
-type FTensor1[T] = Tensor1[T, Float]
-
 class Encoder(p: Encoder.EncoderParams):
-  def apply(v: FTensor1[Height |*| Width]): FTensor1[Latent] =
-    val layer1 = LinearLayer(p.layer1)
-    val layer2 = LinearLayer(p.layer2)
-    val latentLayer = LinearLayer(p.latentLayer)
 
+  val layer1 = LinearLayer(p.layer1)
+  val layer2 = LinearLayer(p.layer2)
+  val latentLayer = LinearLayer(p.latentLayer)
+
+  def apply(v: Tensor1[Pixel, Float]): Tensor1[Latent, Float] =
     val h1 = relu(layer1(v))
     val h2 = relu(layer2(h1))
-    val latent = latentLayer(h2)
-    latent
+    latentLayer(h2)
 
 object Encoder:
   case class EncoderParams(
-      layer1: LinearLayer.Params[Height |*| Width, EHidden1],
+      layer1: LinearLayer.Params[Pixel, EHidden1],
       layer2: LinearLayer.Params[EHidden1, EHidden2],
       latentLayer: LinearLayer.Params[EHidden2, Latent]
   )
 
 class Decoder(p: Decoder.DecoderParams):
-  def apply(v: FTensor1[Latent]): FTensor1[ReconstructedFeature] =
-    val layer1 = LinearLayer(p.layer1)
-    val layer2 = LinearLayer(p.layer2)
-    val outputLayer = LinearLayer(p.outputLayer)
 
+  val layer1 = LinearLayer(p.layer1)
+  val layer2 = LinearLayer(p.layer2)
+  val outputLayer = LinearLayer(p.outputLayer)
+
+  def apply(v: Tensor1[Latent, Float]): Tensor1[ReconstructedPixel, Float] =
     val h1 = relu(layer1(v))
     val h2 = relu(layer2(h1))
-    val reconstructed = sigmoid(outputLayer(h2))
-
-    reconstructed
+    sigmoid(outputLayer(h2))
 
 object Decoder:
   case class DecoderParams(
       layer1: LinearLayer.Params[Latent, DHidden1],
       layer2: LinearLayer.Params[DHidden1, DHidden2],
-      outputLayer: LinearLayer.Params[DHidden2, ReconstructedFeature]
+      outputLayer: LinearLayer.Params[DHidden2, ReconstructedPixel]
   )
 
 case class Autoencoder(params: Autoencoder.Params):
@@ -75,16 +72,16 @@ case class Autoencoder(params: Autoencoder.Params):
   val encoder = Encoder(params.encoderParams)
   val decoder = Decoder(params.decoderParams)
 
-  def apply(v: FTensor1[SourceFeature]): (FTensor1[ReconstructedFeature], FTensor1[Latent]) =
+  def apply(v: Tensor1[Pixel, Float]): (Tensor1[ReconstructedPixel, Float], Tensor1[Latent, Float]) =
     val latent = encoder(v)
     val reconstructed = decoder(latent)
     (reconstructed, latent)
 
-  def loss(original: FTensor1[Height |*| Width]): Tensor0[Float] =
+  def loss(original: Tensor1[Pixel, Float]): Tensor0[Float] =
     val (reconstructed, _) = apply(original)
     val eps = 1e-5f
-    val reconLoss = -((original * (reconstructed +! eps).log) + ((Tensor0(1f) -! original) * (1f -! reconstructed +! eps).log)).sum
-    reconLoss
+    val reconstructionLoss = -((original * (reconstructed +! eps).log) + ((Tensor0(1f) -! original) * (1f -! reconstructed +! eps).log)).sum
+    reconstructionLoss
 
 object Autoencoder:
   case class Params(
@@ -120,8 +117,8 @@ object AutoencoderExample:
      * */
     val initKeys = initKey.split(6)
     val encoderParams = Encoder.EncoderParams(
-      LinearLayer.Params[Height |*| Width, EHidden1](initKeys(0))(
-        Axis[Height |*| Width] -> (28 * 28),
+      LinearLayer.Params[Pixel, EHidden1](initKeys(0))(
+        Axis[Pixel] -> (28 * 28),
         Axis[EHidden1] -> 512
       ),
       LinearLayer.Params[EHidden1, EHidden2](initKeys(1))(
@@ -142,9 +139,9 @@ object AutoencoderExample:
         Axis[DHidden1] -> 256,
         Axis[DHidden2] -> 512
       ),
-      LinearLayer.Params[DHidden2, ReconstructedFeature](initKeys(5))(
+      LinearLayer.Params[DHidden2, ReconstructedPixel](initKeys(5))(
         Axis[DHidden2] -> 512,
-        Axis[ReconstructedFeature] -> (28 * 28)
+        Axis[ReconstructedPixel] -> (28 * 28)
       )
     )
 
