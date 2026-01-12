@@ -202,18 +202,18 @@ object AEExample:
      * */
     val ae = AE(trainedParams)
 
-    val reconstructed = testX.vmap(Axis[TestSample]): sample =>
-      val latent = ae.encoder(sample.ravel)
-      ae.decoder(latent)
+    val reconstructed = testX
+      .slice(Axis[TestSample] -> (0 until 64))
+      .vmap(Axis[TestSample]): sample =>
+        val latent = ae.encoder(sample.ravel)
+        ae.decoder(latent)
+      .relabel(Axis[TestSample] -> Axis[Prime[Height] |*| Prime[Width]])
 
-    reconstructed.chunk(Axis[TestSample], 1).take(6).foreach: img =>
-      val img2d = img.slice(Axis[TestSample] -> 0).rearrange(
-        (Axis[Height], Axis[Width]),
-        (Axis[Height] -> 28, Axis[Width] -> 28)
-      )
-      import me.shadaj.scalapy.py
-      val matplotlib = py.module("matplotlib")
-      matplotlib.use("WebAgg")
-      val plt = py.module("matplotlib.pyplot")
-      plt.imshow(img2d.jaxValue, cmap = "gray")
-      plt.show()
+    val img2d = reconstructed.rearrange(
+      (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
+      (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, Axis[Height] -> 28, Axis[Width] -> 28)
+    )
+    import me.shadaj.scalapy.py
+    val plt = py.module("matplotlib.pyplot")
+    plt.imshow(img2d.jaxValue, cmap = "gray")
+    plt.show()

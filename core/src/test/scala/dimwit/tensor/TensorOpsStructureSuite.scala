@@ -132,6 +132,17 @@ class TensorOpsStructureSuite extends AnyFunSpec with Matchers:
 
   describe("Concatenation"):
 
+    it("Prime axes are rearrangable"):
+      // As rearrange uses einops the "+" om the derived label for B |+| C must be handled in the rearrange operation to not trigger error
+      val t = Tensor2.fromArray(Axis[A], Axis[Prime[B] |*| B], VType[Float])(
+        Array(Array(1.0f, 2.0f, 3.0f, 4.0f), Array(5.0f, 6.0f, 7.0f, 8.0f))
+      )
+      val tRearranged = t.rearrange(
+        (Axis[B], Axis[Prime[B]], Axis[A]),
+        (Axis[B] -> 2, Axis[Prime[B]] -> 2)
+      )
+      tRearranged.axes shouldBe List("B", "B'", "A")
+
     it("|+| axes are rearrangable"):
       // As rearrange uses einops the "+" om the derived label for B |+| C must be handled in the rearrange operation to not trigger error
       val t = Tensor2.fromArray(Axis[A], Axis[B |+| C], VType[Float])(
