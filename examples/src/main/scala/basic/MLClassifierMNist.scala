@@ -5,14 +5,7 @@ import dimwit.Conversions.given
 import nn.*
 import nn.ActivationFunctions.{relu, sigmoid}
 import dimwit.random.Random
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.Try
-import java.io.{FileInputStream, DataInputStream, BufferedInputStream}
-import java.io.RandomAccessFile
-import java.util.Base64
-import me.shadaj.scalapy.py
-import me.shadaj.scalapy.py.SeqConverters
+import dimwit.jax.Jit.jitReduce
 
 def binaryCrossEntropy[L: Label](
     logits: Tensor1[L, Float],
@@ -37,6 +30,7 @@ object MLPClassifierMNist:
     )
 
     object Params:
+
       def apply(
           layer1Dim: Dim[Height |*| Width],
           layer2Dim: Dim[Hidden],
@@ -105,39 +99,32 @@ object MLPClassifierMNist:
 
     def gradientStep(
         imageBatch: Tensor[(TrainSample, Height, Width), Float],
-        labelBatch: Tensor1[TrainSample, Int],
+        labelBatch: Tensor1[TrainSample, Int]
+    )(
         params: MLP.Params
     ): MLP.Params =
       val lossBatch = batchLoss(imageBatch, labelBatch)
       val df = Autodiff.grad(lossBatch)
       GradientDescent(df, learningRate).step(params)
-    val jitStep = jit(gradientStep, Map("donate_argnums" -> Tuple1(2)))
-    // val jitStep = jit(gradientStep)
+    val jitStep = jitReduce(gradientStep)
 
+    val imageBatches = trainX.chunk(Axis[TrainSample], batchSize)
+    val labelBatches = trainY.chunk(Axis[TrainSample], batchSize)
+    val length = imageBatches.length
+    val imageBatch = imageBatches.head
+    val labelBatch = labelBatches.head
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
         labelBatches: Seq[Tensor1[TrainSample, Int]]
     )(
         params: MLP.Params
     ): MLP.Params =
-      imageBatches
-        .zip(labelBatches)
-        .foldLeft(params):
-          case (currentParams, (imageBatch, labelBatch)) =>
-            val params = jitStep(imageBatch, labelBatch, currentParams)
-            /*
-             * This "solves" the problem, by post-doc donating the currentParams.
-             * I don't really understand why without this, we have a memory leak.
-             * Keep here for documentation until we fix memory issues.
-            summon[FloatTensorTree[MLP.Params]].map(currentParams, [T <: Tuple] => (n: Labels[T]) ?=> (p: Tensor[T, Float]) =>
-              val oldHandle = p.jaxValue
-              p.jaxValue = py.Dynamic.global.None
-              oldHandle.delete()
-              p
-            )
-             */
-            params
-
+      jitStep.finish:
+        imageBatches
+          .zip(labelBatches)
+          .foldLeft(jitStep.setup(params)):
+            case (currentParams, (imageBatch, labelBatch)) =>
+              jitStep(imageBatch, labelBatch)(currentParams)
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], batchSize),
       trainY.chunk(Axis[TrainSample], batchSize)
