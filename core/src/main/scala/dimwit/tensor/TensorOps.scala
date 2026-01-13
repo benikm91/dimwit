@@ -233,7 +233,7 @@ object TensorOps:
           )
         )
 
-      def contract[
+      def dot[
           ContractAxis,
           OtherShape <: Tuple,
           R1 <: Tuple,
@@ -251,8 +251,8 @@ object TensorOps:
 
         Tensor(Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = axesPair))
 
-      @targetName("contractOn")
-      def contract[
+      @targetName("dotOn")
+      def dot[
           ContractAxisA,
           ContractAxisB,
           OtherShape <: Tuple,
