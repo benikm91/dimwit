@@ -97,20 +97,15 @@ object MLPClassifierMNist:
 
     def gradientStep(
         imageBatch: Tensor[(TrainSample, Height, Width), Float],
-        labelBatch: Tensor1[TrainSample, Int],
+        labelBatch: Tensor1[TrainSample, Int]
+    )(
         params: MLP.Params
     ): MLP.Params =
       val lossBatch = batchLoss(imageBatch, labelBatch)
       val df = Autodiff.grad(lossBatch)
       GradientDescent(df, learningRate).step(params)
 
-    val jitReduceStep = jitReduce(
-      (
-          imageBatch: Tensor[(TrainSample, Height, Width), Float],
-          labelBatch: Tensor1[TrainSample, Int]
-      ) => (params: MLP.Params) => gradientStep(imageBatch, labelBatch, params)
-    )
-    val jitStep = jit(gradientStep)
+    val jitReduceStep = jitReduce(gradientStep)
 
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
@@ -123,17 +118,6 @@ object MLPClassifierMNist:
           .foldLeft(jitReduceStep.lift(params)):
             case (currentParams, (imageBatch, labelBatch)) =>
               jitReduceStep(imageBatch, labelBatch)(currentParams)
-
-    def miniBatchGradientDescent2(
-        imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
-        labelBatches: Seq[Tensor1[TrainSample, Int]]
-    )(
-        params: MLP.Params
-    ): MLP.Params =
-      imageBatches.zip(labelBatches)
-        .foldLeft(params):
-          case (currentParams, (imageBatch, labelBatch)) =>
-            jitStep(imageBatch, labelBatch, currentParams)
 
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], numSamples / batchSize),
