@@ -36,7 +36,7 @@ def autoDiffAPI(): Unit =
     def f(x: Tensor1[A, Float]): Tensor0[Float] = x.sum
     val df = Autodiff.grad(f)
     val delta = df(Tensor1.fromArray(Axis[A], VType[Float])(Array.fill(10)(1.0f)))
-    println(delta.shape)
+    println(delta.value.shape) // Access underlying value
   }
   {
     type ParamsTuple = (Tensor2[A, B, Float], Tensor1[C, Float])
@@ -54,7 +54,7 @@ def autoDiffAPI(): Unit =
         Tensor1.fromArray(Axis[C], VType[Float])(Array.fill(5)(1.0f))
       )
     )
-    println((delta._1.shape, delta._2.shape))
+    println((delta.value._1.shape, delta.value._2.shape))
   }
   {
     case class Params(

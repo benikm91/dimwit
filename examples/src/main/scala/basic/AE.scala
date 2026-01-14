@@ -169,9 +169,11 @@ object AEExample:
         .mean
 
     val batches = trainX.chunk(Axis[TrainSample], numSamples / batchSize)
+    val optimizer = GradientDescent(learningRate)
+
     def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: AE.Params): AE.Params =
-      val df = Autodiff.grad(loss(batch))
-      GradientDescent(df, learningRate).step(params)
+      val grads = Autodiff.grad(loss(batch))(params)
+      optimizer.update(grads, (), params)._2
 
     // val jittedGradientStep = gradientStep
     val jittedGradientStep = jit(gradientStep, Map("donate_argnums" -> Tuple1(1)))

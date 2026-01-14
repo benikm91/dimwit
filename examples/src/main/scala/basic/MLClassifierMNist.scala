@@ -65,11 +65,11 @@ object MLPClassifierMNist:
 
   def main(args: Array[String]): Unit =
 
-    val learningRate = 5e-2f
+    val learningRate = 1e-4f
     val numSamples = 59904
     val numTestSamples = 9728
     val batchSize = 512
-    val numEpochs = 1000
+    val numEpochs = 50
     val (dataKey, trainKey) = Random.Key(42).split2()
     val (initKey, restKey) = trainKey.split2()
 
@@ -103,50 +103,40 @@ object MLPClassifierMNist:
       val matches = zipvmap(Axis[Sample])(predictions, targets)(_ === _)
       matches.asFloat.mean
 
+    val optimizer = Lion(learningRate = Tensor0(learningRate), weightDecay = Tensor0(0f))
+
     def gradientStep(
         imageBatch: Tensor[(TrainSample, Height, Width), Float],
         labelBatch: Tensor1[TrainSample, Int],
+        state: MLP.Params,
         params: MLP.Params
-    ): MLP.Params =
+    ): (MLP.Params, MLP.Params) =
       val lossBatch = batchLoss(imageBatch, labelBatch)
-      val df = Autodiff.grad(lossBatch)
-      GradientDescent(df, learningRate).step(params)
-    val jitStep = jit(gradientStep, Map("donate_argnums" -> Tuple1(2)))
-    // val jitStep = jit(gradientStep)
+      val grads = Autodiff.grad(lossBatch)(params)
+      optimizer.update(grads, state, params)
+    val jitStep = jit(gradientStep, Map("donate_argnums" -> (2, 3)))
 
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
         labelBatches: Seq[Tensor1[TrainSample, Int]]
     )(
+        initialState: MLP.Params,
         params: MLP.Params
-    ): MLP.Params =
+    ): (MLP.Params, MLP.Params) =
       imageBatches
         .zip(labelBatches)
-        .foldLeft(params):
-          case (currentParams, (imageBatch, labelBatch)) =>
-            val params = jitStep(imageBatch, labelBatch, currentParams)
-            /*
-             * This "solves" the problem, by post-doc donating the currentParams.
-             * I don't really understand why without this, we have a memory leak.
-             * Keep here for documentation until we fix memory issues.
-            summon[FloatTensorTree[MLP.Params]].map(currentParams, [T <: Tuple] => (n: Labels[T]) ?=> (p: Tensor[T, Float]) =>
-              val oldHandle = p.jaxValue
-              p.jaxValue = py.Dynamic.global.None
-              oldHandle.delete()
-              p
-            )
-             */
-            params
+        .foldLeft((initialState, params)):
+          case ((state, currentParams), (imageBatch, labelBatch)) =>
+            jitStep(imageBatch, labelBatch, state, currentParams)
 
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], batchSize),
       trainY.chunk(Axis[TrainSample], batchSize)
     )
-    val trainTrajectory = Iterator.iterate(initParams)(currentParams =>
+    val trainTrajectory = Iterator.iterate((optimizer.init(initParams), initParams)): (state, currentParams) =>
       timed("Training"):
         dimwit.gc()
-        trainMiniBatchGradientDescent(currentParams)
-    )
+        trainMiniBatchGradientDescent(state, currentParams)
     def evaluate(
         params: MLP.Params,
         dataX: Tensor[(Sample, Height, Width), Float],
@@ -156,9 +146,9 @@ object MLPClassifierMNist:
       val predictions = dataX.vmap(Axis[Sample])(model)
       accuracy(predictions, dataY)
     val jitEvaluate = jit(evaluate)
-    val finalParams = trainTrajectory.zipWithIndex
+    val (finalState, finalParams) = trainTrajectory.zipWithIndex
       .tapEach:
-        case (params, epoch) =>
+        case ((state, params), epoch) =>
           timed("Evaluation"):
             val testAccuracy = jitEvaluate(params, testX, testY)
             val trainAccuracy = jitEvaluate(params, trainX, trainY)
@@ -169,7 +159,6 @@ object MLPClassifierMNist:
                 f"Train accuracy: ${trainAccuracy.item * 100}%.2f%%"
               ).mkString(", ")
             )
-      .map((params, _) => params)
       .drop(numEpochs)
       .next()
 

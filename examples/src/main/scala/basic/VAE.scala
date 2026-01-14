@@ -16,6 +16,7 @@ import nn.GradientDescent
 import dimwit.jax.Jax
 import nn.ActivationFunctions.sigmoid
 import dimwit.random.Random.Key
+import nn.Lion
 
 type SourceFeature = Height |*| Width
 type ReconstructedFeature = Height |*| Width
@@ -114,12 +115,12 @@ object VAEExample:
 
   def main(args: Array[String]): Unit =
 
-    val learningRate = 5e-4f
+    val learningRate = 1e-5f
 
     val numTestSamples = 9728
     val batchSize = 256
     val numSamples = 59904
-    val numEpochs = 120
+    val numEpochs = 50
     val latentDim = 20
 
     val (dataKey, trainKey) = Random.Key(42).split2()
@@ -173,17 +174,19 @@ object VAEExample:
       }.mean
 
     val batches = trainX.chunk(Axis[TrainSample], numSamples / batchSize)
-    def trainBatch(trainKey: Random.Key, batch: Tensor3[Sample, Height, Width, Float], params: VAE.Params): VAE.Params =
-      val df = Autodiff.grad(batchLoss(trainKey, batch))
-      GradientDescent(df, learningRate).step(params)
 
-    val jittedTrainBatch = jit(trainBatch, Map("donate_argnums" -> Tuple1(2)))
+    // val optimizer = GradientDescent(learningRate)
+    val optimizer = Lion(learningRate = learningRate, weightDecay = Tensor0(1e-4f))
+    def trainBatch(trainKey: Random.Key, batch: Tensor3[Sample, Height, Width, Float], optState: optimizer.State[VAE.Params], params: VAE.Params): (optimizer.State[VAE.Params], VAE.Params) =
+      val grads = Autodiff.grad(batchLoss(trainKey, batch))(params)
+      optimizer.update(grads, optState, params)
+    val jitTrainBatch = jit(trainBatch, Map("donate_argnums" -> (2, 3)))
 
-    def trainEpoch(key: Random.Key, epoch: Int, params: VAE.Params): VAE.Params =
+    def trainEpoch(key: Random.Key, epoch: Int, optState: optimizer.State[VAE.Params], params: VAE.Params): (optimizer.State[VAE.Params], VAE.Params) =
       val batchKeys = key.split(batches.size)
-      batches.zip(batchKeys).foldLeft(params):
-        case (batchParams, (batch, key)) =>
-          jittedTrainBatch(key, batch, batchParams)
+      batches.zip(batchKeys).foldLeft((optState, params)):
+        case ((state, batchParams), (batch, key)) =>
+          jitTrainBatch(key, batch, state, batchParams)
 
     // run the loop
     val keysForEpochs = dataKey.split(numEpochs)
@@ -193,14 +196,16 @@ object VAEExample:
       [T <: Tuple] => (n: Labels[T]) ?=> (t: Tensor[T, Float]) => t *! 0.1f
     )
 
-    val trainedParams = (0 until numEpochs).foldLeft(initialParams):
-      case (params, epoch) =>
+    val initialOptState = optimizer.init(initialParams)
+
+    val (finalOptState, trainedParams) = (0 until numEpochs).foldLeft((initialOptState, initialParams)):
+      case ((optState, params), epoch) =>
         timed(s"Evaluation $epoch/$numEpochs"):
           val lossValue = batchLoss(keysForEpochs(epoch), testX)(params)
           println(s"Test loss in epoch $epoch: $lossValue")
         timed(s"Training $epoch/$numEpochs"):
           dimwit.gc()
-          trainEpoch(keysForEpochs(epoch), epoch, params)
+          trainEpoch(keysForEpochs(epoch), epoch, optState, params)
 
     /*
      * Evaluation

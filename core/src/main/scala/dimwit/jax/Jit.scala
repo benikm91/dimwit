@@ -76,3 +76,24 @@ object Jit:
       val pyT3 = ToPyTree[T3].toPyTree(t3)
       val res = jitted(pyT1, pyT2, pyT3)
       ToPyTree[R].fromPyTree(res)
+
+  def jit[T1, T2, T3, T4, R](f: (T1, T2, T3, T4) => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], t4Tree: ToPyTree[T4], outTree: ToPyTree[R]): (T1, T2, T3, T4) => R =
+    jit(f, Map())
+  def jit[T1, T2, T3, T4, R](f: (T1, T2, T3, T4) => R, pyKwargs: Map[String, Any])(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], t4Tree: ToPyTree[T4], outTree: ToPyTree[R]): (T1, T2, T3, T4) => R =
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, t3: Jax.PyDynamic, t4: Jax.PyDynamic) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val pyT2 = ToPyTree[T2].fromPyTree(t2)
+      val pyT3 = ToPyTree[T3].fromPyTree(t3)
+      val pyT4 = ToPyTree[T4].fromPyTree(t4)
+      val result = f(pyT1, pyT2, pyT3, pyT4)
+      ToPyTree[R].toPyTree(result)
+
+    val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(pyKwargs))
+
+    (t1: T1, t2: T2, t3: T3, t4: T4) =>
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      val pyT2 = ToPyTree[T2].toPyTree(t2)
+      val pyT3 = ToPyTree[T3].toPyTree(t3)
+      val pyT4 = ToPyTree[T4].toPyTree(t4)
+      val res = jitted(pyT1, pyT2, pyT3, pyT4)
+      ToPyTree[R].fromPyTree(res)
