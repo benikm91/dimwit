@@ -156,3 +156,31 @@ object TupleHelpers:
   type ReplaceLast[T <: Tuple, New] <: Tuple = T match
     case h *: EmptyTuple => New *: EmptyTuple
     case h *: tail       => h *: ReplaceLast[tail, New]
+
+  /** Drop the last N elements from a tuple */
+  type DropLast[T <: Tuple, N <: Int] <: Tuple = N match
+    case 0 => T
+    case 1 => DropLast1[T]
+    case 2 => DropLast2[T]
+    case 3 => DropLast3[T]
+
+  /** Helper: Drop the last 1 element from a tuple */
+  type DropLast1[T <: Tuple] <: Tuple = T match
+    case EmptyTuple      => EmptyTuple
+    case h *: EmptyTuple => EmptyTuple
+    case h *: tail       => h *: DropLast1[tail]
+
+  /** Helper: Drop the last 2 elements from a tuple */
+  type DropLast2[T <: Tuple] <: Tuple = T match
+    case EmptyTuple            => EmptyTuple
+    case h *: EmptyTuple       => EmptyTuple
+    case h *: h2 *: EmptyTuple => EmptyTuple
+    case h *: tail             => h *: DropLast2[tail]
+
+  /** Helper: Drop the last 3 elements from a tuple */
+  type DropLast3[T <: Tuple] <: Tuple = T match
+    case EmptyTuple                  => EmptyTuple
+    case h *: EmptyTuple             => EmptyTuple
+    case h *: h2 *: EmptyTuple       => EmptyTuple
+    case h *: h2 *: h3 *: EmptyTuple => EmptyTuple
+    case h *: tail                   => h *: DropLast3[tail]

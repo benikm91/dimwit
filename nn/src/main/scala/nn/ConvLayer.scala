@@ -5,7 +5,7 @@ import dimwit.random.Random
 import dimwit.random.Random.Key
 import dimwit.tensor.{VType, ExecutionType, Labels, Tensor, Shape, Axis, Dim}
 import dimwit.tensor.TensorOps.Convolution.Padding
-import dimwit.tensor.TupleHelpers.{Last, ReplaceLast}
+import dimwit.tensor.TupleHelpers.{Last, ReplaceLast, DropLast}
 import dimwit.stats.Normal
 
 object ConvLayer:
@@ -42,11 +42,14 @@ case class ConvLayer[InChannels: Label, OutChannels: Label, KernelShape <: Tuple
   /** Apply convolution to input tensor (like LinearLayer)
     *
     * Input: (Spatial..., InChannels) Output: (Spatial..., OutChannels)
+    *
+    * Note: The spatial dimensions of the input and kernel must match. For batched inputs, use vmap: inputBatched.vmap(Axis[Batch])(convLayer.apply)
     */
   def apply[InputShape <: Tuple: Labels](x: Tensor[InputShape, Float])(using
       inputChannelMatch: Last[InputShape] =:= InChannels,
       kernelInMatch: dimwit.tensor.TupleHelpers.SecondToLast[KernelShape] =:= InChannels,
       kernelOutMatch: Last[KernelShape] =:= OutChannels,
+      spatialMatch: DropLast[InputShape, 1] =:= DropLast[KernelShape, 2],
       outputLabels: Labels[ReplaceLast[InputShape, OutChannels]]
   ): Tensor[ReplaceLast[InputShape, OutChannels], Float] =
     x.conv(Axis[InChannels], Axis[OutChannels])(params.kernel, stride, padding)
