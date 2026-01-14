@@ -4,33 +4,156 @@ import dimwit.tensor.{Tensor, Shape, Labels}
 import dimwit.jax.{Jax, JaxDType}
 import dimwit.autodiff.ToPyTree
 import me.shadaj.scalapy.py
+import me.shadaj.scalapy.py.SeqConverters
 
 object Jit:
 
-  // TODO replace with TupledFunction when available (no longer experimental)
-  def jit[T1, T2, R](f: (T1, T2) => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]): (T1, T2) => R =
-    val jitF = jit(f.tupled)
-    (t1, t2) => jitF((t1, t2))
-  def jit[T1, T2, T3, R](f: (T1, T2, T3) => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], outTree: ToPyTree[R]): (T1, T2, T3) => R =
-    val jitF = jit(f.tupled)
-    (t1, t2, t3) => jitF((t1, t2, t3))
+  private def anyToPy(x: Any): py.Any = x match
+    case v: py.Any    => v
+    case v: Boolean   => py.Any.from(v)
+    case v: Int       => py.Any.from(v)
+    case v: Long      => py.Any.from(v)
+    case v: Float     => py.Any.from(v)
+    case v: Double    => py.Any.from(v)
+    case v: String    => py.Any.from(v)
+    case v: Seq[Any]  => v.map(anyToPy).toPythonProxy
+    case v: Map[?, ?] => py.Any.from(v.map { case (k, v) => (k.toString, anyToPy(v)) })
+    case v: Product   =>
+      val elements = v.productIterator.map(anyToPy).toSeq
+      py.Dynamic.global.tuple(elements.toPythonProxy)
+    case null => py.None
+    case _    => throw new IllegalArgumentException(s"Cannot convert type ${x.getClass} to Python.")
 
-  def jit[InPyTree: ToPyTree, OutPyTree: ToPyTree](
-      f: InPyTree => OutPyTree
-  ): InPyTree => OutPyTree =
+  def jit[T: ToPyTree, R: ToPyTree](
+      f: T => R
+  ): T => R =
 
-    // Python function that accepts a pytree
     val fpy = (pyTreePy: Jax.PyDynamic) =>
-      val pyTree = ToPyTree[InPyTree].fromPyTree(pyTreePy)
+      val pyTree = ToPyTree[T].fromPyTree(pyTreePy)
       val result = f(pyTree)
-      val tt = ToPyTree[OutPyTree].toPyTree(result)
-      tt
+      ToPyTree[R].toPyTree(result)
 
-    // Apply JIT compilation
     val jitted = Jax.jax_helper.jit_fn(fpy)
 
-    // Return a function that converts Scala types to pytree and applies jitted function
-    (pyTree: InPyTree) =>
-      val pyTreePy = ToPyTree[InPyTree].toPyTree(pyTree)
+    (pyTree: T) =>
+      val pyTreePy = ToPyTree[T].toPyTree(pyTree)
       val res = jitted(pyTreePy)
-      ToPyTree[OutPyTree].fromPyTree(res)
+      ToPyTree[R].fromPyTree(res)
+
+  def jit[T1, T2, R](f: (T1, T2) => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]): (T1, T2) => R =
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val pyT2 = ToPyTree[T2].fromPyTree(t2)
+      val result = f(pyT1, pyT2)
+      ToPyTree[R].toPyTree(result)
+
+    val jitted = Jax.jax_helper.jit_fn(fpy)
+
+    (t1: T1, t2: T2) =>
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      val pyT2 = ToPyTree[T2].toPyTree(t2)
+      val res = jitted(pyT1, pyT2)
+      ToPyTree[R].fromPyTree(res)
+
+  def jit[T1, T2, T3, R](f: (T1, T2, T3) => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], outTree: ToPyTree[R]): (T1, T2, T3) => R =
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, t3: Jax.PyDynamic) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val pyT2 = ToPyTree[T2].fromPyTree(t2)
+      val pyT3 = ToPyTree[T3].fromPyTree(t3)
+      val result = f(pyT1, pyT2, pyT3)
+      ToPyTree[R].toPyTree(result)
+
+    val jitted = Jax.jax_helper.jit_fn(fpy)
+
+    (t1: T1, t2: T2, t3: T3) =>
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      val pyT2 = ToPyTree[T2].toPyTree(t2)
+      val pyT3 = ToPyTree[T3].toPyTree(t3)
+      val res = jitted(pyT1, pyT2, pyT3)
+      ToPyTree[R].fromPyTree(res)
+
+  opaque type ToReduce = py.Any
+
+  /** JIT-compiled reducer for functions of the form (T1, T2, ..., TN) => R => R, where R is the reduced type.
+    * This reducer can be applied multiple times with different T1, T2, ..., TN inputs to accumulate results into R.
+    * This reducer donates the R argument to JAX to avoid copies, improves performance and memory usage.
+    * This reducer allows to skip a fromPyTree and ToPyTree call, improving performance when used in tight loops (e.g., training loop)
+    * In Scala the reducer is exposed as a opaque type ToReduce to prevent misuse.
+    *
+    * Usage:
+    * def step(batch: Tensor2[Sample, Feature, Float])(params: Params): Params = ???
+    * val jitStep = jitReduce(step)
+    *
+    * def trainLoop(batches: Seq[Tensor2[Sample, Feature, Float]], params: Autoencoder.Params): Autoencoder.Params =
+    *   jittedGradientStep.unlift:
+    *     batches.foldLeft(jittedGradientStep.lift(params)):
+    *       case (batchParams, batch) =>
+    *         jittedGradientStep(batch)(batchParams)
+    */
+  trait JitReducer[R: ToPyTree]:
+    def unsafeLift(o: R): ToReduce = ToPyTree[R].toPyTree(o)
+    def lift(o: R): ToReduce =
+      val raw = ToPyTree[R].toPyTree(o)
+      // we must copy here as tree will be donated to JAX and the original might still be usable in Scala
+      Jax.jax.tree_util.tree_map((x: py.Dynamic) => x.copy(), raw)
+    def unlift(r: ToReduce): R = ToPyTree[R].fromPyTree(r)
+
+  case class JitReducer1[R: ToPyTree](f: R => R) extends (ToReduce => ToReduce) with JitReducer[R]:
+    val fpy = (r: ToReduce) =>
+      val rPy = ToPyTree[R].fromPyTree(r)
+      val result = f(rPy)
+      ToPyTree[R].toPyTree(result)
+    val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(0))))
+    def apply(r: ToReduce): ToReduce =
+      jitted(r)
+
+  case class JitReducer2[R: ToPyTree, T1: ToPyTree](f: T1 => R => R) extends JitReducer[R]:
+    val fpy = (t1: Jax.PyDynamic, r: ToReduce) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val rPy = ToPyTree[R].fromPyTree(r)
+      val result = f(pyT1)(rPy)
+      ToPyTree[R].toPyTree(result)
+    val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(1))))
+    def apply(t1: T1)(r: ToReduce): ToReduce =
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      jitted(pyT1, r)
+
+  case class JitReducer3[R: ToPyTree, T1: ToPyTree, T2: ToPyTree](f: (T1, T2) => R => R) extends JitReducer[R]:
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, r: ToReduce) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val pyT2 = ToPyTree[T2].fromPyTree(t2)
+      val rPy = ToPyTree[R].fromPyTree(r)
+      val result = f(pyT1, pyT2)(rPy)
+      ToPyTree[R].toPyTree(result)
+    val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(2))))
+    def apply(t1: T1, t2: T2)(r: ToReduce): ToReduce =
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      val pyT2 = ToPyTree[T2].toPyTree(t2)
+      jitted(pyT1, pyT2, r)
+
+  case class JitReducer4[R: ToPyTree, T1: ToPyTree, T2: ToPyTree, T3: ToPyTree](f: (T1, T2, T3) => R => R) extends JitReducer[R]:
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, t3: Jax.PyDynamic, r: ToReduce) =>
+      val pyT1 = ToPyTree[T1].fromPyTree(t1)
+      val pyT2 = ToPyTree[T2].fromPyTree(t2)
+      val pyT3 = ToPyTree[T3].fromPyTree(t3)
+      val rPy = ToPyTree[R].fromPyTree(r)
+      val result = f(pyT1, pyT2, pyT3)(rPy)
+      ToPyTree[R].toPyTree(result)
+    val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(3))))
+    def apply(t1: T1, t2: T2, t3: T3)(r: ToReduce): ToReduce =
+      val pyT1 = ToPyTree[T1].toPyTree(t1)
+      val pyT2 = ToPyTree[T2].toPyTree(t2)
+      val pyT3 = ToPyTree[T3].toPyTree(t3)
+      jitted(pyT1, pyT2, pyT3, r)
+
+  def jitReduce[R](f: R => R)(using outTree: ToPyTree[R]) =
+    JitReducer1(f)
+
+  def jitReduce[T1, R](f: T1 => R => R)(using t1Tree: ToPyTree[T1], outTree: ToPyTree[R]) =
+    JitReducer2(f)
+
+  def jitReduce[T1, T2, R](f: (T1, T2) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]) =
+    JitReducer3(f)
+
+  def jitReduce[T1, T2, T3, R](f: (T1, T2, T3) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], outTree: ToPyTree[R]) =
+    JitReducer4(f)
