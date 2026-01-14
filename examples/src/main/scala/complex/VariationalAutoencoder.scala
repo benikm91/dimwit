@@ -221,19 +221,24 @@ object VariationalAutoencoderExample:
     val vae = VariationalAutoencoder(trainedParams)
 
     /* Reconstructing images */
+
+    trait ImageRow derives Label
+    trait ImageCol derives Label
+
     val reconstructed = testImages
       .slice(Axis[TestSample] -> (0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val (mean, logVar) = vae.encoder(sample.ravel)
         val latent = reparametrize(mean, logVar, dataKey) // TODo Key management
         vae.decoder(latent)
-      .relabel(Axis[TestSample] -> Axis[Prime[Height] |*| Prime[Width]])
+      .split(Axis[TestSample], Axis[ImageRow] -> 8, Axis[ImageCol] -> 8)
 
     plotImg(
       reconstructed
         .rearrange(
-          (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-          (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
+          (Axis[ImageRow |*| Height], Axis[ImageCol |*| Width]),
+          heightDim,
+          widthDim
         )
     )
 
@@ -246,6 +251,9 @@ object VariationalAutoencoderExample:
     plotImg(
       sampled.rearrange(
         (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-        (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
+        Axis[Prime[Height]] -> 8,
+        Axis[Prime[Width]] -> 8,
+        heightDim,
+        widthDim
       )
     )
