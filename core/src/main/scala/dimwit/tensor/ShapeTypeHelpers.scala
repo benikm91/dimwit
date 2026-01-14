@@ -12,6 +12,10 @@ object ShapeTypeHelpers:
     case Axis[a] *: tail => a *: UnwrapAxes[tail]
     case h *: tail       => h *: UnwrapAxes[tail]
 
+  type UnwrapDims[T <: Tuple] <: Tuple = T match
+    case EmptyTuple             => EmptyTuple
+    case (Axis[a], Int) *: tail => a *: UnwrapDims[tail]
+
   @implicitNotFound("Axis[${Axis}] not found in Tensor[${TensorShape}]")
   trait AxisInTensor[TensorShape <: Tuple, Axis]:
     def index: Int
@@ -75,3 +79,22 @@ object ShapeTypeHelpers:
         evT: SharedAxisRemover[T, Axis, TailOut]
     ): SharedAxisRemover[H *: T, Axis, R *: TailOut] with
       def indices = evH.index :: evT.indices
+
+  trait DimExtractor[T]:
+    def extract(t: T): Map[String, Int]
+
+  object DimExtractor:
+    given DimExtractor[EmptyTuple] with
+      def extract(t: EmptyTuple) = Map.empty
+
+    given [L, Tail <: Tuple](using
+        label: Label[L],
+        tailExtractor: DimExtractor[Tail]
+    ): DimExtractor[(Axis[L], Int) *: Tail] with
+      def extract(t: (Axis[L], Int) *: Tail) =
+        val (_, size) = t.head
+        Map(label.name -> size) ++ tailExtractor.extract(t.tail)
+
+    given single[L](using label: Label[L]): DimExtractor[(Axis[L], Int)] with
+      def extract(t: (Axis[L], Int)) =
+        Map(label.name -> t._2)

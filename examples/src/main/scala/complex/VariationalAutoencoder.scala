@@ -233,7 +233,10 @@ object VariationalAutoencoderExample:
       reconstructed
         .rearrange(
           (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-          (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
+          Axis[Prime[Height]] -> 8,
+          Axis[Prime[Width]] -> 8,
+          heightDim,
+          widthDim
         )
     )
 
@@ -246,6 +249,9 @@ object VariationalAutoencoderExample:
     plotImg(
       sampled.rearrange(
         (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-        (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
+        Axis[Prime[Height]] -> 8,
+        Axis[Prime[Width]] -> 8,
+        heightDim,
+        widthDim
       )
     )

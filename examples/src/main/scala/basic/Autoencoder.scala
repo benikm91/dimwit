@@ -210,7 +210,10 @@ object AutoencoderExample:
 
     val img2d = reconstructed.rearrange(
       (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-      (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, Axis[Height] -> 28, Axis[Width] -> 28)
+      Axis[Prime[Height]] -> 8,
+      Axis[Prime[Width]] -> 8,
+      Axis[Height] -> 28,
+      Axis[Width] -> 28
     )
     import me.shadaj.scalapy.py
     val plt = py.module("matplotlib.pyplot")
