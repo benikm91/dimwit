@@ -16,7 +16,7 @@ import dimwit.random.Random.Key
 import examples.dataset.MNISTLoader
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitDonate
+import dimwit.jax.Jit.jitDonating
 trait Hidden derives Label
 trait Output derives Label
 

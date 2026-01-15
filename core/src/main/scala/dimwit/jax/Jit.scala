@@ -154,7 +154,7 @@ object Jit:
     val jr = JitReducer2(f)
     jr
 
-  def jitDonate[T1, T2, R](f: (T1, T2) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]) =
+  def jitDonating[T1, T2, R](f: (T1, T2) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]) =
     val jr = JitReducer3(f)
     (jr.lift, jr.apply, jr.unlift)
 
