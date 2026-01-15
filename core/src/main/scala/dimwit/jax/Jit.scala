@@ -72,7 +72,7 @@ object Jit:
       val res = jitted(pyT1, pyT2, pyT3)
       ToPyTree[R].fromPyTree(res)
 
-  opaque type ToReduce = py.Any
+  opaque type Donatable = py.Any
 
   /** JIT-compiled reducer for functions of the form (T1, T2, ..., TN) => R => R, where R is the reduced type.
     * This reducer can be applied multiple times with different T1, T2, ..., TN inputs to accumulate results into R.
@@ -91,48 +91,48 @@ object Jit:
     *         jittedGradientStep(batch)(batchParams)
     */
   trait JitReducer[R: ToPyTree]:
-    def unsafeLift(o: R): ToReduce = ToPyTree[R].toPyTree(o)
-    def lift(o: R): ToReduce =
+    def unsafeLift(o: R): Donatable = ToPyTree[R].toPyTree(o)
+    def lift(o: R): Donatable =
       val raw = ToPyTree[R].toPyTree(o)
       // we must copy here as tree will be donated to JAX and the original might still be usable in Scala
       Jax.jax.tree_util.tree_map((x: py.Dynamic) => x.copy(), raw)
-    def unlift(r: ToReduce): R = ToPyTree[R].fromPyTree(r)
+    def unlift(r: Donatable): R = ToPyTree[R].fromPyTree(r)
 
-  case class JitReducer1[R: ToPyTree](f: R => R) extends (ToReduce => ToReduce) with JitReducer[R]:
-    val fpy = (r: ToReduce) =>
+  case class JitReducer1[R: ToPyTree](f: R => R) extends (Donatable => Donatable) with JitReducer[R]:
+    val fpy = (r: Donatable) =>
       val rPy = ToPyTree[R].fromPyTree(r)
       val result = f(rPy)
       ToPyTree[R].toPyTree(result)
     val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(0))))
-    def apply(r: ToReduce): ToReduce =
+    def apply(r: Donatable): Donatable =
       jitted(r)
 
   case class JitReducer2[R: ToPyTree, T1: ToPyTree](f: T1 => R => R) extends JitReducer[R]:
-    val fpy = (t1: Jax.PyDynamic, r: ToReduce) =>
+    val fpy = (t1: Jax.PyDynamic, r: Donatable) =>
       val pyT1 = ToPyTree[T1].fromPyTree(t1)
       val rPy = ToPyTree[R].fromPyTree(r)
       val result = f(pyT1)(rPy)
       ToPyTree[R].toPyTree(result)
     val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(1))))
-    def apply(t1: T1)(r: ToReduce): ToReduce =
+    def apply(t1: T1)(r: Donatable): Donatable =
       val pyT1 = ToPyTree[T1].toPyTree(t1)
       jitted(pyT1, r)
 
   case class JitReducer3[R: ToPyTree, T1: ToPyTree, T2: ToPyTree](f: (T1, T2) => R => R) extends JitReducer[R]:
-    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, r: ToReduce) =>
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, r: Donatable) =>
       val pyT1 = ToPyTree[T1].fromPyTree(t1)
       val pyT2 = ToPyTree[T2].fromPyTree(t2)
       val rPy = ToPyTree[R].fromPyTree(r)
       val result = f(pyT1, pyT2)(rPy)
       ToPyTree[R].toPyTree(result)
     val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(2))))
-    def apply(t1: T1, t2: T2)(r: ToReduce): ToReduce =
+    def apply(t1: T1, t2: T2)(r: Donatable): Donatable =
       val pyT1 = ToPyTree[T1].toPyTree(t1)
       val pyT2 = ToPyTree[T2].toPyTree(t2)
       jitted(pyT1, pyT2, r)
 
   case class JitReducer4[R: ToPyTree, T1: ToPyTree, T2: ToPyTree, T3: ToPyTree](f: (T1, T2, T3) => R => R) extends JitReducer[R]:
-    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, t3: Jax.PyDynamic, r: ToReduce) =>
+    val fpy = (t1: Jax.PyDynamic, t2: Jax.PyDynamic, t3: Jax.PyDynamic, r: Donatable) =>
       val pyT1 = ToPyTree[T1].fromPyTree(t1)
       val pyT2 = ToPyTree[T2].fromPyTree(t2)
       val pyT3 = ToPyTree[T3].fromPyTree(t3)
@@ -140,20 +140,24 @@ object Jit:
       val result = f(pyT1, pyT2, pyT3)(rPy)
       ToPyTree[R].toPyTree(result)
     val jitted = Jax.jax_helper.jit_fn(fpy, anyToPy(Map("donate_argnums" -> Tuple1(3))))
-    def apply(t1: T1, t2: T2, t3: T3)(r: ToReduce): ToReduce =
+    def apply(t1: T1, t2: T2, t3: T3)(r: Donatable): Donatable =
       val pyT1 = ToPyTree[T1].toPyTree(t1)
       val pyT2 = ToPyTree[T2].toPyTree(t2)
       val pyT3 = ToPyTree[T3].toPyTree(t3)
       jitted(pyT1, pyT2, pyT3, r)
 
-  def jitReduce[R](f: R => R)(using outTree: ToPyTree[R]) =
-    JitReducer1(f)
+  def jitDonate[R](f: R => R)(using outTree: ToPyTree[R]) =
+    val jr = JitReducer1(f)
+    jr
 
-  def jitReduce[T1, R](f: T1 => R => R)(using t1Tree: ToPyTree[T1], outTree: ToPyTree[R]) =
-    JitReducer2(f)
+  def jitDonate[T1, R](f: T1 => R => R)(using t1Tree: ToPyTree[T1], outTree: ToPyTree[R]) =
+    val jr = JitReducer2(f)
+    jr
 
-  def jitReduce[T1, T2, R](f: (T1, T2) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]) =
-    JitReducer3(f)
+  def jitDonate[T1, T2, R](f: (T1, T2) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], outTree: ToPyTree[R]) =
+    val jr = JitReducer3(f)
+    (jr.lift, jr.apply, jr.unlift)
 
-  def jitReduce[T1, T2, T3, R](f: (T1, T2, T3) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], outTree: ToPyTree[R]) =
-    JitReducer4(f)
+  def jitDonate[T1, T2, T3, R](f: (T1, T2, T3) => R => R)(using t1Tree: ToPyTree[T1], t2Tree: ToPyTree[T2], t3Tree: ToPyTree[T3], outTree: ToPyTree[R]) =
+    val jr = JitReducer4(f)
+    jr

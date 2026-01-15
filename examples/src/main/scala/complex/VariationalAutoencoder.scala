@@ -15,7 +15,7 @@ import nn.ActivationFunctions.sigmoid
 import dimwit.random.Random.Key
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonate
 type Pixel = Height |*| Width
 type ReconstructedPixel = Height |*| Width
 
@@ -184,14 +184,15 @@ object VariationalAutoencoderExample:
       val df = Autodiff.grad(batchLoss(trainKey, batch))
       GradientDescent(df, learningRate).step(params)
 
-    val jittedTrainBatch = jitReduce(trainBatch)
+    val (jitLift, jitStep, jitUnlift) = jitDonate(trainBatch)
 
     def trainEpoch(key: Random.Key, epoch: Int, params: Params): Params =
       val batchKeys = key.split(batches.size)
-      jittedTrainBatch.unlift:
-        batches.zip(batchKeys).foldLeft(jittedTrainBatch.lift(params)):
+      val donatableParams = jitLift(params)
+      val newParams = batches.zip(batchKeys).foldLeft(donatableParams):
           case (batchParams, (batch, key)) =>
-            jittedTrainBatch(key, batch)(batchParams)
+            jitStep(key, batch)(batchParams)
+      jitUnlift(newParams)
 
     val keysForEpochs = dataKey.split(numEpochs)
 

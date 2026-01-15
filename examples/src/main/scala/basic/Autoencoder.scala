@@ -16,7 +16,7 @@ import dimwit.random.Random.Key
 import examples.dataset.MNISTLoader
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonate
 trait Hidden derives Label
 trait Output derives Label
 
@@ -172,7 +172,7 @@ object AutoencoderExample:
       val df = Autodiff.grad(loss(batch))
       GradientDescent(df, learningRate).step(params)
 
-    val jittedGradientStep = jitReduce(gradientStep)
+    val jittedGradientStep = jitDonate(gradientStep)
 
     def trainEpoch(params: Autoencoder.Params): Autoencoder.Params =
       jittedGradientStep.unlift:

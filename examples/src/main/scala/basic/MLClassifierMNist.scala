@@ -5,7 +5,7 @@ import dimwit.Conversions.given
 import nn.*
 import nn.ActivationFunctions.{relu, sigmoid}
 import dimwit.random.Random
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonate
 
 import examples.timed
 import examples.dataset.MNISTLoader
@@ -105,7 +105,7 @@ object MLPClassifierMNist:
       val df = Autodiff.grad(lossBatch)
       GradientDescent(df, learningRate).step(params)
 
-    val jitReduceStep = jitReduce(gradientStep)
+    val (jitLift, jitStep, jitUnlift) = jitDonate(gradientStep)
 
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
@@ -113,11 +113,12 @@ object MLPClassifierMNist:
     )(
         params: MLP.Params
     ): MLP.Params =
-      jitReduceStep.unlift:
-        imageBatches.zip(labelBatches)
-          .foldLeft(jitReduceStep.lift(params)):
+      val donatableParams = jitLift(params)
+      val newParams = imageBatches.zip(labelBatches)
+          .foldLeft(donatableParams):
             case (currentParams, (imageBatch, labelBatch)) =>
-              jitReduceStep(imageBatch, labelBatch)(currentParams)
+              jitStep(imageBatch, labelBatch)(currentParams)
+      jitUnlift(newParams)
 
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], numSamples / batchSize),
