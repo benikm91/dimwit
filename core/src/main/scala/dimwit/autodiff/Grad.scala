@@ -16,7 +16,7 @@ import dimwit.jax.Jax
   * optimizer.update(params, state, grads)  // Compile error!
   * }}}
   */
-opaque type Grad[T] = T
+opaque type Grad[T] <: T = T
 
 object Grad:
   /** Tag a value as gradients */

@@ -1,5 +1,6 @@
 package examples.basic
 
+/*
 import dimwit.*
 import nn.*
 import nn.ActivationFunctions.{relu, sigmoid}
@@ -143,3 +144,4 @@ object PenguinCSV:
         }
         .toSeq
     finally source.close()
+*/

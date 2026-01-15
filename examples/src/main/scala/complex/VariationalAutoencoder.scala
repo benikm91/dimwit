@@ -1,5 +1,5 @@
 package examples.complex.vae
-
+/*
 import examples.timed
 
 import dimwit.*
@@ -251,3 +251,4 @@ object VariationalAutoencoderExample:
         (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
       )
     )
+*/

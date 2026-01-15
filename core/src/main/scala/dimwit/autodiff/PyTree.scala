@@ -39,6 +39,13 @@ object ToPyTree:
       val b = tb.fromPyTree(pyTuple.bracketAccess(1))
       (a, b)
 
+  given unitInstance: ToPyTree[Unit] with
+    def toPyTree(u: Unit): Jax.PyAny =
+      py.Dynamic.global.none
+
+    def fromPyTree(p: Jax.PyAny): Unit =
+      ()
+
   inline given derived[P <: Product](using m: Mirror.ProductOf[P]): ToPyTree[P] =
     new ToPyTree[P]:
       def toPyTree(p: P): Jax.PyAny =

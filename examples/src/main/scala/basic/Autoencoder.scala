@@ -1,5 +1,5 @@
 package examples.basic.ae
-
+/*
 import dimwit.*
 import dimwit.Conversions.given
 
@@ -219,3 +219,4 @@ object AutoencoderExample:
     val plt = py.module("matplotlib.pyplot")
     plt.imshow(img2d.jaxValue, cmap = "gray")
     plt.show()
+*/
