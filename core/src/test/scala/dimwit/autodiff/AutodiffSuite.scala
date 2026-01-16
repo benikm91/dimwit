@@ -15,8 +15,8 @@ class AutodiffSuite extends AnyFunSpec with Matchers:
       it("d¹, d², d³ of x²"):
         def f(x: Tensor0[Float]) = x * x
         val df = Autodiff.grad(f)
-        val ddf = Autodiff.grad(df)
-        val dddf = Autodiff.grad(ddf)
+        val ddf = Autodiff.grad((x: Tensor0[Float]) => df(x).value)
+        val dddf = Autodiff.grad((x: Tensor0[Float]) => ddf(x).value)
 
         val x = Tensor0(3.0f)
         df(x) shouldEqual Tensor0(6.0f)
@@ -45,7 +45,7 @@ class AutodiffSuite extends AnyFunSpec with Matchers:
         val x = Tensor1.fromArray(Axis[A], VType[Float])(Array(1.0f))
         val y = Tensor1.fromArray(Axis[A], VType[Float])(Array(1.0f))
 
-        val (xGrad, yGrad) = df(x, y)
+        val (xGrad, yGrad) = df(x, y).value
         xGrad shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(6.0f))
         yGrad shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(12.0f))
 
@@ -104,4 +104,4 @@ class AutodiffSuite extends AnyFunSpec with Matchers:
       val dloss = Autodiff.grad(loss(trainData))
       val params = Params(Tensor1.fromArray(Axis[A], VType[Float])(Array(1.0f, 2.0f)), Tensor0(3.0f))
       val dParams = dloss(params)
-      dParams.w shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(16.0f, 32.0f))
+      dParams.value.w shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(16.0f, 32.0f))

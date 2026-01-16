@@ -5,11 +5,9 @@ import dimwit.Conversions.given
 import nn.*
 import nn.ActivationFunctions.{relu, sigmoid}
 import dimwit.random.Random
-import dimwit.jax.Jit.jitDonating
 
 import examples.timed
 import examples.dataset.MNISTLoader
-import dimwit.jax.Jit.Donatable
 
 def binaryCrossEntropy[L: Label](
     logits: Tensor1[L, Float],
@@ -63,11 +61,11 @@ object MLPClassifierMNist:
 
   def main(args: Array[String]): Unit =
 
-    val learningRate = 5e-2f
+    val learningRate = 1e-4f
     val numSamples = 59904
     val numTestSamples = 9728
     val batchSize = 512
-    val numEpochs = 1000
+    val numEpochs = 50
     val (dataKey, trainKey) = Random.Key(42).split2()
     val (initKey, restKey) = trainKey.split2()
 
@@ -96,51 +94,52 @@ object MLPClassifierMNist:
       val matches = zipvmap(Axis[Sample])(predictions, targets)(_ === _)
       matches.asFloat.mean
 
+    val optimizer = Lion(learningRate = Tensor0(learningRate), weightDecay = Tensor0(0f))
+
     def gradientStep(
         imageBatch: Tensor[(TrainSample, Height, Width), Float],
         labelBatch: Tensor1[TrainSample, Int],
-        params: MLP.Params
-    ): MLP.Params =
+        params: MLP.Params,
+        state: MLP.Params
+    ): (MLP.Params, MLP.Params) =
       val lossBatch = batchLoss(imageBatch, labelBatch)
-      val df = Autodiff.grad(lossBatch)
-      GradientDescent(df, learningRate).step(params)
-
-    val (jitDonate, jitStep, jitReclaim) = jitDonating(gradientStep)
+      val grads = Autodiff.grad(lossBatch)(params)
+      optimizer.update(grads, params, state)
+    val jitStep = jit(gradientStep)
 
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
         labelBatches: Seq[Tensor1[TrainSample, Int]]
     )(
-        params: MLP.Params
-    ): MLP.Params =
-      val donatableParams: Donatable = jitDonate(params)
-      val newParams: Donatable = imageBatches.zip(labelBatches)
-        .foldLeft(donatableParams):
-          case (currentParams, (imageBatch, labelBatch)) =>
-            jitStep(imageBatch, labelBatch)(currentParams)
-      jitReclaim(newParams)
+        params: MLP.Params,
+        initialState: MLP.Params
+    ): (MLP.Params, MLP.Params) =
+      imageBatches
+        .zip(labelBatches)
+        .foldLeft((params, initialState)):
+          case ((currentParams, state), (imageBatch, labelBatch)) =>
+            jitStep(imageBatch, labelBatch, currentParams, state)
 
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], numSamples / batchSize),
       trainY.chunk(Axis[TrainSample], numSamples / batchSize)
     )
-    val trainTrajectory = Iterator.iterate(initParams)(currentParams =>
+    val trainTrajectory = Iterator.iterate((initParams, optimizer.init(initParams))): (currentParams, state) =>
       timed("Training"):
         dimwit.gc()
-        trainMiniBatchGradientDescent(currentParams)
-    )
+        trainMiniBatchGradientDescent(currentParams, state)
     def evaluate(
         params: MLP.Params,
-        dataX: Tensor3[Sample, Height, Width, Float],
+        dataX: Tensor[(Sample, Height, Width), Float],
         dataY: Tensor1[Sample, Int]
     ): Tensor0[Float] =
       val model = MLP(params)
       val predictions = dataX.vmap(Axis[Sample])(model)
       accuracy(predictions, dataY)
     val jitEvaluate = jit(evaluate)
-    val finalParams = trainTrajectory.zipWithIndex
+    val (finalParams, finalState) = trainTrajectory.zipWithIndex
       .tapEach:
-        case (params, epoch) =>
+        case ((params, state), epoch) =>
           timed("Evaluation"):
             val testAccuracy = jitEvaluate(params, testX, testY)
             val trainAccuracy = jitEvaluate(params, trainX, trainY)
@@ -151,7 +150,6 @@ object MLPClassifierMNist:
                 f"Train accuracy: ${trainAccuracy.item * 100}%.2f%%"
               ).mkString(", ")
             )
-      .map((params, _) => params)
       .drop(numEpochs)
       .next()
 

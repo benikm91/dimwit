@@ -115,6 +115,7 @@ object JitDefault:
   def jit[T1: ToPyTree, R: ToPyTree](f: T1 => R): T1 => R = toPyJit(f, Map.empty)
   def jit[T1: ToPyTree, T2: ToPyTree, R: ToPyTree](f: (T1, T2) => R): (T1, T2) => R = toPyJit(f, Map.empty)
   def jit[T1: ToPyTree, T2: ToPyTree, T3: ToPyTree, R: ToPyTree](f: (T1, T2, T3) => R): (T1, T2, T3) => R = toPyJit(f, Map.empty)
+  def jit[T1: ToPyTree, T2: ToPyTree, T3: ToPyTree, T4: ToPyTree, R: ToPyTree](f: (T1, T2, T3, T4) => R): (T1, T2, T3, T4) => R = toPyJit(f, Map.empty)
 
 object JitDonating:
 
