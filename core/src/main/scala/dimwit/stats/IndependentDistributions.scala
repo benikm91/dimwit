@@ -24,8 +24,8 @@ class Normal[LocT <: T, ScaleT <: T, T <: Tuple: Labels](
 
 object Normal:
   def standardNormal[T <: Tuple: Labels](shape: Shape[T]) = new Normal(
-    loc = Tensor.zeros(shape, VType[Float]),
-    scale = Tensor.ones(shape, VType[Float])
+    loc = Tensor(shape).fill(0f),
+    scale = Tensor(shape).fill(1f)
   )
 
 class Uniform[T <: Tuple: Labels](

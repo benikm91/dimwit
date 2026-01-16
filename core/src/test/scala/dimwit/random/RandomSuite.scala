@@ -49,7 +49,7 @@ class RandomSuite extends AnyFunSuite with Matchers:
 
     // Generate random numbers using individual calls
     val splitKeys = key.split(n)
-    val individualResults = Tensor1.fromArray(Axis[Samples], VType[Float])(
+    val individualResults = Tensor1(Axis[Samples]).fromArray(
       splitKeys.map(k => Tensor0.randn(k).item).toArray
     )
 
@@ -75,7 +75,7 @@ class RandomSuite extends AnyFunSuite with Matchers:
 
     // Check that it's actually permuted (with very high probability it won't be identical)
     // By checking the first element is not 0 (fails 1/10 of the time, but good enough)
-    val original = Tensor1.fromArray(Axis[A], VType[Int])((0 until n).toArray)
+    val original = Tensor1(Axis[A]).fromArray((0 until n).toArray)
     val isIdentity = (perm === original).item
     isIdentity shouldBe false
 
@@ -85,7 +85,7 @@ class RandomSuite extends AnyFunSuite with Matchers:
     trait Col derives Label
 
     // Create a 2D tensor with distinct values to verify shuffling
-    val original = Tensor2.fromArray(Axis[Row], Axis[Col], VType[Int])(Array(
+    val original = Tensor2(Axis[Row], Axis[Col]).fromArray(Array(
       Array(0, 1, 2),
       Array(3, 4, 5),
       Array(6, 7, 8),
