@@ -45,7 +45,7 @@ class AutodiffSuite extends AnyFunSpec with Matchers:
         val x = Tensor1.fromArray(Axis[A], VType[Float])(Array(1.0f))
         val y = Tensor1.fromArray(Axis[A], VType[Float])(Array(1.0f))
 
-        val (xGrad, yGrad) = df(x, y)
+        val (xGrad, yGrad) = df(x, y).value
         xGrad shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(6.0f))
         yGrad shouldEqual Tensor1.fromArray(Axis[A], VType[Float])(Array(12.0f))
 
