@@ -15,7 +15,6 @@ import nn.ActivationFunctions.sigmoid
 import dimwit.random.Random.Key
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitDonating
 type Pixel = Height |*| Width
 type ReconstructedPixel = Height |*| Width
 
@@ -173,26 +172,27 @@ object VariationalAutoencoderExample:
      */
     def batchLoss(key: Random.Key, trainData: Tensor3[Sample, Height, Width, Float])(params: Params): Tensor0[Float] =
       val vae = VariationalAutoencoder(params)
-      val keys = key.splitToTensor(trainData.dim(Axis[Sample]))
-      zipvmap(Axis[Sample])(trainData, keys):
-        case (sample, key) =>
-          vae.loss(sample.ravel, key.item)
-      .mean
+      val batchSize = trainData.shape.dim(Axis[Sample])._2
+      val keys = key.split(batchSize)
+      val losses = (0 until batchSize).map: idx =>
+        val sample = trainData.slice(Axis[Sample] -> idx)
+        vae.loss(sample.ravel, keys(idx))
+      losses.reduce(_ + _) / batchSize.toFloat
 
     val batches = trainImages.chunk(Axis[TrainSample], numSamples / batchSize)
+    val optimizer = GradientDescent(learningRate = Tensor0(learningRate))
     def trainBatch(trainKey: Random.Key, batch: Tensor3[Sample, Height, Width, Float], params: Params): Params =
-      val df = Autodiff.grad(batchLoss(trainKey, batch))
-      GradientDescent(df, learningRate).step(params)
+      val grads = Autodiff.grad(batchLoss(trainKey, batch))(params)
+      val (newParams, _) = optimizer.update(grads, params, ())
+      newParams
 
-    val (jitDonate, jitStep, jitReclaim) = jitDonating(trainBatch)
+    val jittedTrainBatch = jit(trainBatch)
 
     def trainEpoch(key: Random.Key, epoch: Int, params: Params): Params =
       val batchKeys = key.split(batches.size)
-      val donatableParams = jitDonate(params)
-      val newParams = batches.zip(batchKeys).foldLeft(donatableParams):
+      batches.zip(batchKeys).foldLeft(params):
         case (batchParams, (batch, key)) =>
-          jitStep(key, batch)(batchParams)
-      jitReclaim(newParams)
+          jittedTrainBatch(key, batch, batchParams)
 
     val keysForEpochs = dataKey.split(numEpochs)
 
@@ -222,24 +222,19 @@ object VariationalAutoencoderExample:
     val vae = VariationalAutoencoder(trainedParams)
 
     /* Reconstructing images */
-
-    trait ImageRow derives Label
-    trait ImageCol derives Label
-
     val reconstructed = testImages
       .slice(Axis[TestSample] -> (0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val (mean, logVar) = vae.encoder(sample.ravel)
         val latent = reparametrize(mean, logVar, dataKey) // TODo Key management
         vae.decoder(latent)
-      .split(Axis[TestSample], Axis[ImageRow] -> 8, Axis[ImageCol] -> 8)
+      .relabel(Axis[TestSample] -> Axis[Prime[Height] |*| Prime[Width]])
 
     plotImg(
       reconstructed
         .rearrange(
-          (Axis[ImageRow |*| Height], Axis[ImageCol |*| Width]),
-          heightDim,
-          widthDim
+          (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
+          (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
         )
     )
 
@@ -252,9 +247,6 @@ object VariationalAutoencoderExample:
     plotImg(
       sampled.rearrange(
         (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
-        Axis[Prime[Height]] -> 8,
-        Axis[Prime[Width]] -> 8,
-        heightDim,
-        widthDim
+        (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, heightDim, widthDim)
       )
     )

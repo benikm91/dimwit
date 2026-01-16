@@ -88,9 +88,9 @@ object LogisticRegression:
     val trainLoss = loss(trainingData)
     val valLoss = loss(valData)
     val learningRate = 3e-1f
-    val gd = GradientDescent(Autodiff.grad(trainLoss), learningRate)
+    val gd = GradientDescent(learningRate)
 
-    val trainTrajectory = Iterator.iterate(initParams)(gd.step)
+    val trainTrajectory = gd.iterate(initParams)(Autodiff.grad(trainLoss))
     val finalParams = trainTrajectory.zipWithIndex
       .tapEach:
         case (params, index) =>

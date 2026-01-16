@@ -16,7 +16,6 @@ import dimwit.random.Random.Key
 import examples.dataset.MNISTLoader
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitDonating
 trait Hidden derives Label
 trait Output derives Label
 
@@ -82,7 +81,7 @@ case class Autoencoder(params: Autoencoder.Params):
   def loss(original: Tensor1[Pixel, Float]): Tensor0[Float] =
     val (reconstructed, _) = apply(original)
     val eps = 1e-5f
-    val reconstructionLoss = -((original * (reconstructed +! eps).log) + ((1f -! original) * (1f -! reconstructed +! eps).log)).sum
+    val reconstructionLoss = -((original * (reconstructed +! eps).log) + ((Tensor0(1f) -! original) * (1f -! reconstructed +! eps).log)).sum
     reconstructionLoss
 
 object Autoencoder:
@@ -168,25 +167,27 @@ object AutoencoderExample:
         .mean
 
     val batches = trainX.chunk(Axis[TrainSample], numSamples / batchSize)
-    def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: Autoencoder.Params): Autoencoder.Params =
-      val df = Autodiff.grad(loss(batch))
-      GradientDescent(df, learningRate).step(params)
 
-    val (jitDonate, jitStep, jitReclaim) = jitDonating(gradientStep)
+    val optimizer = GradientDescent(learningRate = Tensor0(learningRate))
+
+    def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: Autoencoder.Params): Autoencoder.Params =
+      val grads = Autodiff.grad(loss(batch))(params)
+      val (newParams, _) = optimizer.update(grads, params, ())
+      newParams
+
+    val jittedGradientStep = jit(gradientStep)
 
     def trainEpoch(params: Autoencoder.Params): Autoencoder.Params =
-      val donatableParams = jitDonate(params)
-      val newParams = batches.foldLeft(donatableParams):
-        case (batchParams, batch) =>
-          jitStep(batch)(batchParams)
-      jitReclaim(newParams)
+      batches.foldLeft(params):
+        case (currentParams, batch) =>
+          jittedGradientStep(batch, currentParams)
 
     // run the loop
-    val trainTrajectory = Iterator.iterate(scaledInitialParams)(currentParams =>
+    val trainTrajectory = Iterator.iterate(scaledInitialParams): currentParams =>
       timed("Training"):
         dimwit.gc()
         trainEpoch(currentParams)
-    )
+
     val trainedParams = trainTrajectory.zipWithIndex
       .tapEach:
         case (params, epoch) =>
@@ -202,20 +203,16 @@ object AutoencoderExample:
      * */
     val ae = Autoencoder(trainedParams)
 
-    trait ImageRow derives Label
-    trait ImageCol derives Label
-
     val reconstructed = testX
       .slice(Axis[TestSample] -> (0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val latent = ae.encoder(sample.ravel)
         ae.decoder(latent)
-      .split(Axis[TestSample], Axis[ImageRow] -> 8, Axis[ImageCol] -> 8)
+      .relabel(Axis[TestSample] -> Axis[Prime[Height] |*| Prime[Width]])
 
     val img2d = reconstructed.rearrange(
-      (Axis[ImageRow |*| Height], Axis[ImageCol |*| Width]),
-      Axis[Height] -> 28,
-      Axis[Width] -> 28
+      (Axis[Prime[Height] |*| Height], Axis[Prime[Width] |*| Width]),
+      (Axis[Prime[Height]] -> 8, Axis[Prime[Width]] -> 8, Axis[Height] -> 28, Axis[Width] -> 28)
     )
     import me.shadaj.scalapy.py
     val plt = py.module("matplotlib.pyplot")
