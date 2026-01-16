@@ -16,7 +16,7 @@ import dimwit.random.Random.Key
 import examples.dataset.MNISTLoader
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonating
 trait Hidden derives Label
 trait Output derives Label
 
@@ -168,17 +168,18 @@ object AutoencoderExample:
         .mean
 
     val batches = trainX.chunk(Axis[TrainSample], numSamples / batchSize)
-    def gradientStep(batch: Tensor3[Sample, Height, Width, Float])(params: Autoencoder.Params): Autoencoder.Params =
+    def gradientStep(batch: Tensor3[Sample, Height, Width, Float], params: Autoencoder.Params): Autoencoder.Params =
       val df = Autodiff.grad(loss(batch))
       GradientDescent(df, learningRate).step(params)
 
-    val jittedGradientStep = jitReduce(gradientStep)
+    val (jitDonate, jitStep, jitReclaim) = jitDonating(gradientStep)
 
     def trainEpoch(params: Autoencoder.Params): Autoencoder.Params =
-      jittedGradientStep.unlift:
-        batches.foldLeft(jittedGradientStep.lift(params)):
-          case (batchParams, batch) =>
-            jittedGradientStep(batch)(batchParams)
+      val donatableParams = jitDonate(params)
+      val newParams = batches.foldLeft(donatableParams):
+        case (batchParams, batch) =>
+          jitStep(batch)(batchParams)
+      jitReclaim(newParams)
 
     // run the loop
     val trainTrajectory = Iterator.iterate(scaledInitialParams)(currentParams =>

@@ -15,7 +15,7 @@ import nn.ActivationFunctions.sigmoid
 import dimwit.random.Random.Key
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonating
 type Pixel = Height |*| Width
 type ReconstructedPixel = Height |*| Width
 
@@ -180,18 +180,19 @@ object VariationalAutoencoderExample:
       .mean
 
     val batches = trainImages.chunk(Axis[TrainSample], numSamples / batchSize)
-    def trainBatch(trainKey: Random.Key, batch: Tensor3[Sample, Height, Width, Float])(params: Params): Params =
+    def trainBatch(trainKey: Random.Key, batch: Tensor3[Sample, Height, Width, Float], params: Params): Params =
       val df = Autodiff.grad(batchLoss(trainKey, batch))
       GradientDescent(df, learningRate).step(params)
 
-    val jittedTrainBatch = jitReduce(trainBatch)
+    val (jitDonate, jitStep, jitReclaim) = jitDonating(trainBatch)
 
     def trainEpoch(key: Random.Key, epoch: Int, params: Params): Params =
       val batchKeys = key.split(batches.size)
-      jittedTrainBatch.unlift:
-        batches.zip(batchKeys).foldLeft(jittedTrainBatch.lift(params)):
-          case (batchParams, (batch, key)) =>
-            jittedTrainBatch(key, batch)(batchParams)
+      val donatableParams = jitDonate(params)
+      val newParams = batches.zip(batchKeys).foldLeft(donatableParams):
+        case (batchParams, (batch, key)) =>
+          jitStep(key, batch)(batchParams)
+      jitReclaim(newParams)
 
     val keysForEpochs = dataKey.split(numEpochs)
 

@@ -5,10 +5,11 @@ import dimwit.Conversions.given
 import nn.*
 import nn.ActivationFunctions.{relu, sigmoid}
 import dimwit.random.Random
-import dimwit.jax.Jit.jitReduce
+import dimwit.jax.Jit.jitDonating
 
 import examples.timed
 import examples.dataset.MNISTLoader
+import dimwit.jax.Jit.Donatable
 
 def binaryCrossEntropy[L: Label](
     logits: Tensor1[L, Float],
@@ -97,15 +98,14 @@ object MLPClassifierMNist:
 
     def gradientStep(
         imageBatch: Tensor[(TrainSample, Height, Width), Float],
-        labelBatch: Tensor1[TrainSample, Int]
-    )(
+        labelBatch: Tensor1[TrainSample, Int],
         params: MLP.Params
     ): MLP.Params =
       val lossBatch = batchLoss(imageBatch, labelBatch)
       val df = Autodiff.grad(lossBatch)
       GradientDescent(df, learningRate).step(params)
 
-    val jitReduceStep = jitReduce(gradientStep)
+    val (jitDonate, jitStep, jitReclaim) = jitDonating(gradientStep)
 
     def miniBatchGradientDescent(
         imageBatches: Seq[Tensor[(TrainSample, Height, Width), Float]],
@@ -113,11 +113,12 @@ object MLPClassifierMNist:
     )(
         params: MLP.Params
     ): MLP.Params =
-      jitReduceStep.unlift:
-        imageBatches.zip(labelBatches)
-          .foldLeft(jitReduceStep.lift(params)):
-            case (currentParams, (imageBatch, labelBatch)) =>
-              jitReduceStep(imageBatch, labelBatch)(currentParams)
+      val donatableParams: Donatable = jitDonate(params)
+      val newParams: Donatable = imageBatches.zip(labelBatches)
+        .foldLeft(donatableParams):
+          case (currentParams, (imageBatch, labelBatch)) =>
+            jitStep(imageBatch, labelBatch)(currentParams)
+      jitReclaim(newParams)
 
     val trainMiniBatchGradientDescent = miniBatchGradientDescent(
       trainX.chunk(Axis[TrainSample], numSamples / batchSize),
@@ -130,7 +131,7 @@ object MLPClassifierMNist:
     )
     def evaluate(
         params: MLP.Params,
-        dataX: Tensor[(Sample, Height, Width), Float],
+        dataX: Tensor3[Sample, Height, Width, Float],
         dataY: Tensor1[Sample, Int]
     ): Tensor0[Float] =
       val model = MLP(params)
