@@ -1,8 +1,10 @@
 package dimwit.autodiff
 
 import dimwit.tensor.*
+import dimwit.tensor.TensorOps.*
 import scala.deriving.*
 import scala.compiletime.*
+import scala.util.NotGiven
 
 // TODO hot fix with retag and context parameter... maybe this can be improved?
 
@@ -12,7 +14,31 @@ trait FloatTensorTree[P]:
   def zipMap(p1: P, p2: P, p3: P, f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): P
 
 object FloatTensorTree extends FloatTensorTreeLowPriority:
+
   def apply[P](using pt: FloatTensorTree[P]): FloatTensorTree[P] = pt
+
+  extension (p2: Tensor0[Float])
+    def ++![P: NonTrivialFloatTensorTree](p1: P): P = summon[NonTrivialFloatTensorTree[P]].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a +! p2)
+    def --![P: NonTrivialFloatTensorTree](p1: P): P = summon[NonTrivialFloatTensorTree[P]].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a -! p2)
+    def **![P: NonTrivialFloatTensorTree](p1: P): P = summon[NonTrivialFloatTensorTree[P]].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a *! p2)
+    def `//!`[P: NonTrivialFloatTensorTree](p1: P): P = summon[NonTrivialFloatTensorTree[P]].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a /! p2)
+
+  extension [P](p1: P)(using pt: FloatTensorTree[P])
+    def ++(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a + b)
+    def ++!(p2: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a +! p2)
+    def --(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a - b)
+    def --!(p2: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a -! p2)
+    def **(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a * b)
+    def **!(p2: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a *! p2)
+    def `//`(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a / b)
+    def `//!`(p2: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a /! p2)
+
+    def sqrt: P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => TensorOps.sqrt(a))
+    def pow(exponent: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => TensorOps.pow(a)(exponent))
+    def scale(scalar: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => TensorOps.scale(a)(scalar))
+    def sign: P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => TensorOps.sign(a))
+
+    def fillCopy(value: Float): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => Tensor(a.shape).fill(value))
 
   given [Q <: Tuple](using n: Labels[Q]): FloatTensorTree[Tensor[Q, Float]] with
     def map(t: Tensor[Q, Float], f: [T <: Tuple] => Labels[T] ?=> (Tensor[T, Float] => Tensor[T, Float])): Tensor[Q, Float] =
@@ -66,8 +92,21 @@ object FloatTensorTree extends FloatTensorTreeLowPriority:
           case (((e1, e2), e3), inst) => inst.zipMap(e1, e2, e3, f)
       m.fromProduct(Tuple.fromArray(mappedElems.map(_.asInstanceOf[Object]).toArray))
 
-trait FloatTensorTreeLowPriority:
-  given identity[A]: FloatTensorTree[A] = new FloatTensorTree[A]:
-    def map(p: A, f: [T <: Tuple] => Labels[T] ?=> (Tensor[T, Float] => Tensor[T, Float])): A = p
-    def zipMap(p1: A, p2: A, f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): A = p1
-    def zipMap(p1: A, p2: A, p3: A, f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): A = p1
+trait FloatTensorTreeLowPriority
+
+trait IsFloatTensorTreeBranch[P]
+object IsFloatTensorTreeBranch:
+  // If it's a Product but NOT a Tensor, it's a Branch
+  given [P <: Product](using NotGiven[P <:< Tensor[?, Float]]): IsFloatTensorTreeBranch[P] with {}
+
+trait IsTensor[P]
+
+object IsTensor:
+  given [T <: Tuple]: IsTensor[Tensor[T, Float]] with {}
+
+trait NonTrivialFloatTensorTree[P] extends FloatTensorTree[P]
+
+object NonTrivialFloatTensorTree:
+  given [P](using ev: NotGiven[IsTensor[P]], floatTensorTree: FloatTensorTree[P]): NonTrivialFloatTensorTree[P] =
+    new NonTrivialFloatTensorTree[P]:
+      export floatTensorTree.*

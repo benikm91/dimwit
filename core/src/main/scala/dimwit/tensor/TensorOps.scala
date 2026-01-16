@@ -996,7 +996,8 @@ object TensorOps:
 
     import Elementwise.+!
 
-    extension [V: IsNumber: Writer](scalar: V)
+    // TODO remove <: to support opaque IsNumber...
+    extension [V <: Float | Int | Boolean: IsNumber: Writer](scalar: V)
 
       def +![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
         given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
@@ -1008,7 +1009,8 @@ object TensorOps:
         given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
         Tensor0(scalar).broadcastTo(t.shape) * t
 
-    extension [V: IsFloat: Writer](scalar: V)
+    // TODO remove <: to support opaque IsFloat...
+    extension [V <: Float: IsFloat: Writer](scalar: V)
 
       def /![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
         given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)

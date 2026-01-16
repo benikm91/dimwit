@@ -99,10 +99,10 @@ object MLPClassifierMNist:
     // val optimizer = Lion(learningRate = Tensor0(1e-4f), weightDecay = Tensor0(0f))
     // type OptState = MLP.Params
 
-    // val optimizer = Adam(learningRate = Tensor0(1e-4f))
+    val optimizer = Adam(learningRate = Tensor0(1e-4f))
     // type OptState = AdamState[MLP.Params]
 
-    val optimizer = AdamW(Adam(learningRate = Tensor0(1e-4f)), Tensor0(1e-2f))
+    // val optimizer = AdamW(Adam(learningRate = Tensor0(1e-4f)), Tensor0(1e-2f))
     type OptState = optimizer.State[MLP.Params]
 
     def gradientStep(
