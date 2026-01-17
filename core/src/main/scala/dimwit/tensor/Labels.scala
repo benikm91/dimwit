@@ -2,6 +2,7 @@ package dimwit.tensor
 
 import scala.compiletime.*
 import scala.quoted.*
+import Tuple.:*
 
 trait Label[T]:
   def name: String
@@ -42,6 +43,13 @@ object Labels extends LabelsLowPriority:
       t: Labels[tail]
   ): Labels[head *: tail] = new LabelsImpl[head *: tail](
     v.name :: t.names
+  )
+
+  given append[head, tail <: Tuple](using
+      v: Label[head],
+      t: Labels[tail]
+  ): Labels[tail :* head] = new LabelsImpl[tail :* head](
+    t.names :+ v.name
   )
 
   object ForConcat:

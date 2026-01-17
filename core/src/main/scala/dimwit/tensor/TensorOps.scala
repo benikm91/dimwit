@@ -6,7 +6,7 @@ import scala.util.NotGiven
 
 import dimwit.jax.{Jax, Einops}
 import dimwit.tensor.{Label, Labels}
-import dimwit.tensor.TupleHelpers.{Subset, StrictSubset, PrimeConcat, ReplaceLast, Last, SecondToLast, DropLast}
+import dimwit.tensor.TupleHelpers.{Subset, StrictSubset, PrimeConcat}
 import dimwit.tensor.ShapeTypeHelpers.{AxisRemover, AxesRemover, SharedAxisRemover, AxisReplacer, AxesConditionalRemover, UnwrapAxes}
 import dimwit.{~, `|*|`, `|+|`}
 
@@ -15,6 +15,9 @@ import me.shadaj.scalapy.py.SeqConverters
 
 import me.shadaj.scalapy.readwrite.Writer
 import me.shadaj.scalapy.readwrite.Reader
+
+import Tuple.:*
+import Tuple.++
 
 object TensorOps:
 
@@ -278,20 +281,20 @@ object TensorOps:
     enum Padding:
       case SAME, VALID
 
-    extension [T <: Tuple: Labels, V: IsFloat](input: Tensor[T, V])
+    extension [S1: Label, S2: Label, InChannel: Label, V: IsFloat](input: Tensor[S1 *: S2 *: InChannel *: EmptyTuple, V])
 
       /** Convolutional operation using JAX's conv_general_dilated
         *
         * Expected shapes:
-        *   - Input: (Spatial..., InChannels) - channels-last format
-        *   - Kernel: (Spatial..., InChannels, OutChannels) - spatial labels must match input
-        *   - Output: (Spatial..., OutChannels)
+        *   - Input: (Spatial..., InChannel) - channels-last format
+        *   - Kernel: (Spatial..., InChannel, OutChannel) - spatial labels must match input
+        *   - Output: (Spatial..., OutChannel)
         *
         * The spatial dimensions of the kernel must have the same labels as the input's spatial dimensions. For batched convolutions, use vmap over the batch dimension.
         *
         * Example:
-        *   - 1D: input (Length, InChannels), kernel (Length, InChannels, OutChannels)
-        *   - 2D: input (Height, Width, InChannels), kernel (Height, Width, InChannels, OutChannels)
+        *   - 1D: input (Length, InChannel), kernel (Length, InChannel, OutChannel)
+        *   - 2D: input (Height, Width, InChannel), kernel (Height, Width, InChannel, OutChannel)
         *   - Batched 2D: input.vmap(Axis[Batch])(x => x.conv(...)(kernel))
         *
         * @param inChannelAxis
@@ -299,26 +302,18 @@ object TensorOps:
         * @param outChannelAxis
         *   The output channel axis for the result
         * @param kernel
-        *   Convolutional kernel/filter with matching spatial dimensions
+        *   Convolutional kernel/filter with matching spatial dimensioons
         * @param stride
         *   Uniform stride for all spatial dimensions (default: 1)
         * @param padding
         *   Padding mode (default: Padding.SAME)
         */
-      def conv[InChannels, OutChannels: Label, KernelShape <: Tuple: Labels](
-          inChannelAxis: Axis[InChannels],
-          outChannelAxis: Axis[OutChannels]
-      )(
-          kernel: Tensor[KernelShape, Float],
+      def conv2d[OutChannel: Label](
+          kernel: Tensor[S1 *: S2 *: InChannel *: OutChannel *: EmptyTuple, Float],
           stride: Int = 1,
           padding: Padding = Padding.SAME
-      )(using
-          inputChannelMatch: Last[T] =:= InChannels,
-          kernelInMatch: SecondToLast[KernelShape] =:= InChannels,
-          kernelOutMatch: Last[KernelShape] =:= OutChannels,
-          spatialMatch: DropLast[T, 1] =:= DropLast[KernelShape, 2],
-          outputLabels: Labels[ReplaceLast[T, OutChannels]]
-      ): Tensor[ReplaceLast[T, OutChannels], V] =
+      ): Tensor[S1 *: S2 *: OutChannel *: EmptyTuple, V] =
+
         val inputRank = input.shape.rank
         val kernelRank = kernel.shape.rank
 
@@ -335,10 +330,10 @@ object TensorOps:
 
         // Verify input channels match between input and kernel
         val inputChannels = input.shape.dimensions(inputRank - 1)
-        val kernelInChannels = kernel.shape.dimensions(kernelRank - 2)
+        val kernelInChannel = kernel.shape.dimensions(kernelRank - 2)
         require(
-          inputChannels == kernelInChannels,
-          s"Input channels mismatch: input has $inputChannels channels, kernel expects $kernelInChannels"
+          inputChannels == kernelInChannel,
+          s"Input channels mismatch: input has $inputChannels channels, kernel expects $kernelInChannel"
         )
 
         // JAX requires input and kernel to have same rank. Add dummy batch dim if needed.
@@ -354,7 +349,7 @@ object TensorOps:
         // Build dimension_numbers for channels-last format
         val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
         val lhsSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
+        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannel, OutChannel)
         val outSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
 
         val dimNumbers = py.Dynamic.global.tuple(
@@ -376,25 +371,25 @@ object TensorOps:
         else
           convResult
 
-        Tensor[ReplaceLast[T, OutChannels], V](finalResultJax)
+        Tensor(finalResultJax)
 
       /** Transposed convolutional operation (deconvolution) using JAX's conv_transpose
         *
         * This is the adjoint operator to conv. Expected shapes:
-        *   - Input: (Spatial..., OutChannels) - channels-last format
-        *   - Kernel: (Spatial..., InChannels, OutChannels) - spatial labels must match input
-        *   - Output: (Spatial..., InChannels)
+        *   - Input: (Spatial..., OutChannel) - channels-last format
+        *   - Kernel: (Spatial..., InChannel, OutChannel) - spatial labels must match input
+        *   - Output: (Spatial..., InChannel)
         *
-        * Note: Input has OutChannels (matching conv's output space), output has InChannels (matching conv's input space). This makes transposeConv the proper mathematical adjoint: <conv(x,k), y> = <x, transposeConv(y,k)>
+        * Note: Input has OutChannel (matching conv's output space), output has InChannel (matching conv's input space). This makes transposeConv the proper mathematical adjoint: <conv(x,k), y> = <x, transposeConv(y,k)>
         *
         * The spatial dimensions of the kernel must have the same labels as the input's spatial dimensions. For batched convolutions, use vmap over the batch dimension.
         *
         * Transpose convolution upsamples the spatial dimensions, performing the inverse operation of regular convolution.
         *
         * @param inChannelAxis
-        *   The input channel axis (which will be OutChannels from the forward conv)
+        *   The input channel axis (which will be OutChannel from the forward conv)
         * @param outChannelAxis
-        *   The output channel axis for the result (which will be InChannels from forward conv)
+        *   The output channel axis for the result (which will be InChannel from forward conv)
         * @param kernel
         *   Convolutional kernel/filter (same kernel as used in forward conv)
         * @param stride
@@ -402,20 +397,14 @@ object TensorOps:
         * @param padding
         *   Padding mode (default: Padding.SAME)
         */
-      def transposeConv[InChannels: Label, OutChannels, KernelShape <: Tuple: Labels](
-          inChannelAxis: Axis[OutChannels],
-          outChannelAxis: Axis[InChannels]
-      )(
-          kernel: Tensor[KernelShape, Float],
+    extension [S1: Label, S2: Label, OutChannel: Label, V: IsFloat](input: Tensor[S1 *: S2 *: OutChannel *: EmptyTuple, V])
+
+      def transposeConv2d[InChannel: Label](
+          kernel: Tensor[S1 *: S2 *: InChannel *: OutChannel *: EmptyTuple, Float],
           stride: Int = 1,
           padding: Padding = Padding.SAME
-      )(using
-          inputChannelMatch: Last[T] =:= OutChannels,
-          kernelInMatch: SecondToLast[KernelShape] =:= InChannels,
-          kernelOutMatch: Last[KernelShape] =:= OutChannels,
-          spatialMatch: DropLast[T, 1] =:= DropLast[KernelShape, 2],
-          outputLabels: Labels[ReplaceLast[T, InChannels]]
-      ): Tensor[ReplaceLast[T, InChannels], V] =
+      ): Tensor[S1 *: S2 *: InChannel *: EmptyTuple, V] =
+
         val inputRank = input.shape.rank
         val kernelRank = kernel.shape.rank
 
@@ -431,12 +420,12 @@ object TensorOps:
         )
 
         // Verify input channels match between input and kernel
-        // For transposeConv: input has OutChannels, should match kernel's last dimension (OutChannels)
+        // For transposeConv: input has OutChannel, should match kernel's last dimension (OutChannel)
         val inputChannels = input.shape.dimensions(inputRank - 1)
-        val kernelOutChannels = kernel.shape.dimensions(kernelRank - 1)
+        val kernelOutChannel = kernel.shape.dimensions(kernelRank - 1)
         require(
-          inputChannels == kernelOutChannels,
-          s"Input channels mismatch: input has $inputChannels channels (OutChannels), kernel expects $kernelOutChannels"
+          inputChannels == kernelOutChannel,
+          s"Input channels mismatch: input has $inputChannels channels (OutChannel), kernel expects $kernelOutChannel"
         )
 
         // JAX requires input and kernel to have same rank. Add dummy batch dim if needed.
@@ -452,7 +441,7 @@ object TensorOps:
         // Build dimension_numbers for channels-last format
         val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
         val lhsSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannels, OutChannels)
+        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannel, OutChannel)
         val outSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
 
         val dimNumbers = py.Dynamic.global.tuple(
@@ -460,7 +449,7 @@ object TensorOps:
         )
 
         // For the adjoint property <conv(x,k), y> = <x, transposeConv(y,k)>, we need to:
-        // 1. Swap kernel channels: (Spatial..., InChannels, OutChannels) -> (Spatial..., OutChannels, InChannels)
+        // 1. Swap kernel channels: (Spatial..., InChannel, OutChannel) -> (Spatial..., OutChannel, InChannel)
         // 2. Flip all spatial dimensions
         var kernelAdjoint = Jax.jnp.swapaxes(kernel.jaxValue, kernelRank - 2, kernelRank - 1)
 
@@ -483,10 +472,10 @@ object TensorOps:
         else
           convResult
 
-        Tensor[ReplaceLast[T, InChannels], V](finalResultJax)
+        Tensor(finalResultJax)
 
   end Convolution
-  export Convolution.conv, Convolution.transposeConv, Convolution.Padding
+  export Convolution.conv2d, Convolution.transposeConv2d, Convolution.Padding
 
   object LinearAlgebra:
 
