@@ -2,6 +2,7 @@ package dimwit.autodiff
 
 import dimwit.tensor.{Tensor, Shape}
 import dimwit.jax.Jax
+import dimwit.random.Random
 
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
@@ -17,10 +18,19 @@ object ToPyTree:
 
   def apply[P](using pt: ToPyTree[P]): ToPyTree[P] = pt
 
+  given unit: ToPyTree[Unit] with
+    def toPyTree(u: Unit): Jax.PyAny = py.None
+    def fromPyTree(p: Jax.PyAny): Unit = ()
+
   // Keep the tensor instance
   given [T <: Tuple: Labels, V]: ToPyTree[Tensor[T, V]] with
     def toPyTree(t: Tensor[T, V]): Jax.PyAny = t.jaxValue
     def fromPyTree(p: Jax.PyAny): Tensor[T, V] = Tensor(p.as[Jax.PyDynamic])
+
+  // Random.Key instance - wraps and unwraps the JAX key
+  given ToPyTree[Random.Key] with
+    def toPyTree(k: Random.Key): Jax.PyAny = k.jaxKey
+    def fromPyTree(p: Jax.PyAny): Random.Key = Random.Key(p.as[Jax.PyDynamic])
 
   // Tuple instances - these should have lower priority than specific case classes
   given tupleInstance[A, B](using ta: ToPyTree[A], tb: ToPyTree[B]): ToPyTree[(A, B)] with

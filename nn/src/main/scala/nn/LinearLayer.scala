@@ -23,13 +23,13 @@ object LinearLayer:
     ): Params[In, Out] =
       Params(
         weight = Normal.standardNormal(Shape(inputDim, outputDim)).sample(paramKey),
-        bias = Tensor.zeros(Shape(outputDim), VType[Float])
+        bias = Tensor(Shape(outputDim)).fill(0.0f)
       )
 
 case class LinearLayer[In: Label, Out: Label](params: LinearLayer.Params[In, Out]) extends Function[Tensor1[In, Float], Tensor1[Out, Float]]:
   override def apply(x: Tensor1[In, Float]): Tensor1[Out, Float] =
     import params.{weight, bias}
-    x.contract(Axis[In])(weight) + bias
+    x.dot(Axis[In])(weight) + bias
 
 object LinearMap:
 
@@ -50,4 +50,4 @@ object LinearMap:
 case class LinearMap[In: Label](params: LinearMap.Params[In]) extends Function[Tensor1[In, Float], Tensor0[Float]]:
   override def apply(x: Tensor1[In, Float]): Tensor0[Float] =
     import params.{weight, bias}
-    x.contract(Axis[In])(weight) + bias
+    x.dot(Axis[In])(weight) + bias

@@ -5,6 +5,7 @@ import dimwit.Conversions.given
 import dimwit.tensor.TensorOps.Convolution.Padding
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.funspec.AnyFunSpec
+import dimwit.stats.Normal
 
 class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
   /*
@@ -85,26 +86,24 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait OutChannels derives Label
 
       // Input: (batch=2, height=8, width=8, in_channels=3)
-      val inputBatched = Tensor.ones(
+      val inputBatched = Tensor(
         Shape(
           Axis[Batch] -> 2,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[InChannels] -> 3
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       // Kernel: (height=3, width=3, in_channels=3, out_channels=16)
-      val kernel = Tensor.ones(
+      val kernel = Tensor(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 3,
           Axis[OutChannels] -> 16
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       val output = inputBatched.vmap(Axis[Batch])(input => input.conv2d(kernel, stride = 1, padding = Padding.SAME))
 
@@ -121,25 +120,23 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait InChannels derives Label
       trait OutChannels derives Label
 
-      val inputBatched = Tensor.ones(
+      val inputBatched = Tensor(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 16,
           Axis[Width] -> 16,
           Axis[InChannels] -> 3
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
-      val kernel = Tensor.ones(
+      val kernel = Tensor(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 3,
           Axis[OutChannels] -> 8
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       val output = inputBatched.vmap(Axis[Batch])(input => input.conv2d(kernel, stride = 2, padding = Padding.SAME))
 
@@ -168,7 +165,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         Axis[InChannels] -> 1
       )
       val inputData = Array(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f)
-      val inputBatched = Tensor.fromArray(inputShape, VType[Float])(inputData)
+      val inputBatched = Tensor(inputShape).fromArray(inputData)
 
       // Create a 2x2 kernel that sums all values (all ones)
       // When convolved, each output element will be the sum of a 2x2 window
@@ -179,7 +176,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         Axis[OutChannels] -> 1
       )
       val kernelData = Array(1.0f, 1.0f, 1.0f, 1.0f)
-      val kernel = Tensor.fromArray(kernelShape, VType[Float])(kernelData)
+      val kernel = Tensor(kernelShape).fromArray(kernelData)
 
       val output = inputBatched.vmap(Axis[Batch])(input => input.conv2d(kernel, stride = 1, padding = Padding.VALID))
 
@@ -201,7 +198,7 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
         Axis[OutChannels] -> 1
       )
       val expectedData = Array(12.0f, 16.0f, 24.0f, 28.0f)
-      val expected = Tensor.fromArray(expectedShape, VType[Float])(expectedData)
+      val expected = Tensor(expectedShape).fromArray(expectedData)
 
       (output === expected).item.shouldBe(true)
 
@@ -213,9 +210,9 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait In derives Label
       trait Out derives Label
 
-      val input = Tensor.ones(Shape(Axis[A] -> 3, Axis[In] -> 3), VType[Float])
+      val input = Tensor(Shape(Axis[A] -> 3, Axis[In] -> 3)).fill(1f)
       // Kernel with different spatial label B instead of A won't compile
-      val kernel = Tensor.ones(Shape(Axis[B] -> 2, Axis[In] -> 3, Axis[Out] -> 1), VType[Float])
+      val kernel = Tensor(Shape(Axis[B] -> 2, Axis[In] -> 3, Axis[Out] -> 1)).fill(1f)
 
       // This won't compile due to spatial label mismatch
       assertDoesNotCompile("input.conv(Axis[In], Axis[Out])(kernel)")
@@ -301,26 +298,24 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait OutChannels derives Label
 
       // Input: (batch=2, height=8, width=8, out_channels=16) - transposeConv input space
-      val inputBatched = Tensor.ones(
+      val inputBatched = Tensor(
         Shape(
           Axis[Batch] -> 2,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[OutChannels] -> 16
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       // Kernel: (height=3, width=3, in_channels=3, out_channels=16)
-      val kernel = Tensor.ones(
+      val kernel = Tensor(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 3,
           Axis[OutChannels] -> 16
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       // transposeConv: OutChannels -> InChannels
       val output = inputBatched.vmap(Axis[Batch])(input => input.transposeConv2d(kernel, stride = 1, padding = Padding.SAME))
@@ -339,25 +334,23 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait OutChannels derives Label
 
       // Input has OutChannels
-      val inputBatched = Tensor.ones(
+      val inputBatched = Tensor(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[OutChannels] -> 8
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
-      val kernel = Tensor.ones(
+      val kernel = Tensor(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 3,
           Axis[OutChannels] -> 8
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       // transposeConv: OutChannels -> InChannels
       val output = inputBatched.vmap(Axis[Batch])(input => input.transposeConv2d(kernel, stride = 2, padding = Padding.SAME))
@@ -376,25 +369,23 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       trait OutChannels derives Label
 
       // Input has OutChannels
-      val inputBatched = Tensor.ones(
+      val inputBatched = Tensor(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 4,
           Axis[Width] -> 4,
           Axis[OutChannels] -> 1
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
-      val kernel = Tensor.ones(
+      val kernel = Tensor(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 1,
           Axis[OutChannels] -> 1
-        ),
-        VType[Float]
-      )
+        )
+      ).fill(1f)
 
       // With stride=2 and VALID padding, output size is determined by JAX
       // transposeConv: OutChannels -> InChannels
@@ -429,37 +420,37 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       val key = Random.Key(42)
 
       // Create input tensor x
-      val xBatched = Tensor.randn(
+      val xBatched = Normal.standardNormal(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[InChannels] -> 3
         )
-      )(key)
+      ).sample(key)
 
       // Create kernel k
-      val kernel = Tensor.randn(
+      val kernel = Normal.standardNormal(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 3,
           Axis[OutChannels] -> 5
         )
-      )(key)
+      ).sample(key)
 
       // Compute conv(x, k): produces output with OutChannels
       val convOutput = xBatched.vmap(Axis[Batch])(x => x.conv2d(kernel, stride = 1, padding = Padding.SAME))
 
       // Create y with same shape as conv output (has OutChannels)
-      val yBatched = Tensor.randn(
+      val yBatched = Normal.standardNormal(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[OutChannels] -> 5
         )
-      )(key)
+      ).sample(key)
 
       // Compute transposeConv2d(y, k)
       // transposeConv takes OutChannels input and produces InChannels output
@@ -490,36 +481,36 @@ class TensorOpsConvolutionSuite extends AnyFunSpec with Matchers:
       val key = Random.Key(43)
 
       // Input x: 16x16
-      val xBatched = Tensor.randn(
+      val xBatched = Normal.standardNormal(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 16,
           Axis[Width] -> 16,
           Axis[InChannels] -> 2
         )
-      )(key)
+      ).sample(key)
 
-      val kernel = Tensor.randn(
+      val kernel = Normal.standardNormal(
         Shape(
           Axis[Height] -> 3,
           Axis[Width] -> 3,
           Axis[InChannels] -> 2,
           Axis[OutChannels] -> 4
         )
-      )(key)
+      ).sample(key)
 
       // conv with stride=2 produces 8x8 output with OutChannels
       val convOutput = xBatched.vmap(Axis[Batch])(x => x.conv2d(kernel, stride = 2, padding = Padding.SAME))
 
       // y has same shape as conv output (8x8 with OutChannels)
-      val yBatched = Tensor.randn(
+      val yBatched = Normal.standardNormal(
         Shape(
           Axis[Batch] -> 1,
           Axis[Height] -> 8,
           Axis[Width] -> 8,
           Axis[OutChannels] -> 4
         )
-      )(key)
+      ).sample(key)
 
       // transposeConv with stride=2 upsamples back to 16x16
       // Takes OutChannels input, produces InChannels output

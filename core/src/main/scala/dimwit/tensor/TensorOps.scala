@@ -16,8 +16,11 @@ import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer
 import me.shadaj.scalapy.readwrite.Reader
 
-import Tuple.:*
-import Tuple.++
+import scala.compiletime.ops.int.<=
+import dimwit.tensor.TupleHelpers.{ValidationResult, CanForm, ComputeMissing, CheckValid, AllOk, MissingAxis}
+import dimwit.tensor.ShapeTypeHelpers.UnwrapDims
+import dimwit.tensor.ShapeTypeHelpers.DimExtractor
+import dimwit.tensor.ShapeTypeHelpers.AxisReplacerAll
 
 object TensorOps:
 
@@ -236,7 +239,7 @@ object TensorOps:
           )
         )
 
-      def contract[
+      def dot[
           ContractAxis,
           OtherShape <: Tuple,
           R1 <: Tuple,
@@ -254,8 +257,8 @@ object TensorOps:
 
         Tensor(Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = axesPair))
 
-      @targetName("contractOn")
-      def contract[
+      @targetName("dotOn")
+      def dot[
           ContractAxisA,
           ContractAxisB,
           OtherShape <: Tuple,
@@ -314,64 +317,38 @@ object TensorOps:
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: OutChannel *: EmptyTuple, V] =
 
-        val inputRank = input.shape.rank
-        val kernelRank = kernel.shape.rank
-
-        require(kernelRank >= 3, s"Kernel must have at least 3 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
-        require(inputRank >= 1, s"Input must have at least 1 dimension (channels), got $inputRank")
-
-        val kernelSpatialDims = kernelRank - 2
-        val inputSpatialDims = inputRank - 1
-
-        require(
-          kernelSpatialDims == inputSpatialDims,
-          s"Kernel spatial dimensions ($kernelSpatialDims) must match input spatial dimensions ($inputSpatialDims)"
-        )
-
         // Verify input channels match between input and kernel
-        val inputChannels = input.shape.dimensions(inputRank - 1)
-        val kernelInChannel = kernel.shape.dimensions(kernelRank - 2)
+        val inputChannels = input.shape(Axis[InChannel])
+        val kernelInChannel = kernel.shape(Axis[InChannel])
         require(
           inputChannels == kernelInChannel,
           s"Input channels mismatch: input has $inputChannels channels, kernel expects $kernelInChannel"
         )
 
-        // JAX requires input and kernel to have same rank. Add dummy batch dim if needed.
-        val needsBatchDim = inputRank == kernelRank - 1
-        val actualInputJax = if needsBatchDim then
-          val newShape = 1 +: input.shape.dimensions
-          Jax.jnp.reshape(input.jaxValue, newShape.toPythonProxy)
-        else
-          input.jaxValue
-
-        val strides = Seq.fill(kernelSpatialDims)(stride)
-
-        // Build dimension_numbers for channels-last format
-        val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
-        val lhsSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannel, OutChannel)
-        val outSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-
-        val dimNumbers = py.Dynamic.global.tuple(
-          Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
+        // 2. Performance: Pre-define JAX dimension numbers
+        // 'NHWC' is standard for 'channels-last'.
+        // 'HWIO' matches your kernel: (Height, Width, In, Out)
+        val dimNums = Jax.lax.conv_dimension_numbers(
+          lhs_shape = py.Dynamic.global.tuple(Seq(1, 1, 1, 1).toPythonProxy),
+          rhs_shape = py.Dynamic.global.tuple(Seq(1, 1, 1, 1).toPythonProxy),
+          dimension_numbers = py.Dynamic.global.tuple(Seq("NHWC", "HWIO", "NHWC").toPythonProxy)
         )
 
-        val convResult = Jax.lax.conv_general_dilated(
-          lhs = actualInputJax,
+        val expandedInput = Jax.jnp.expand_dims(input.jaxValue, 0) // HWC -> NHWC
+
+        // 4. Core Execution
+        val rawResult = Jax.lax.conv_general_dilated(
+          lhs = expandedInput,
           rhs = kernel.jaxValue,
-          window_strides = strides.toPythonProxy,
+          window_strides = py.Dynamic.global.tuple(Seq(stride, stride).toPythonProxy),
           padding = padding.toString,
-          dimension_numbers = dimNumbers
+          dimension_numbers = dimNums
         )
 
-        // Remove dummy batch dimension if we added one
-        val finalResultJax = if needsBatchDim then
-          val tempShape = Jax.jnp.shape(convResult).bracketAccess(py.Dynamic.global.slice(1, py.Dynamic.global.None))
-          Jax.jnp.reshape(convResult, tempShape)
-        else
-          convResult
+        // 5. Cleanup: Return to original rank
+        val finalJax = Jax.jnp.squeeze(rawResult, 0) // NHWC -> HWC
 
-        Tensor(finalResultJax)
+        Tensor(finalJax)
 
       /** Transposed convolutional operation (deconvolution) using JAX's conv_transpose
         *
@@ -404,75 +381,26 @@ object TensorOps:
           stride: Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: InChannel *: EmptyTuple, V] =
+        // Note: For transpose, we usually treat the input as the 'OutChannel' space
+        // and the result as the 'InChannel' space relative to the forward kernel.
+        // require(input.shape(Axis[InChannel]) == kernel.shape(Axis[OutChannel]), "Channel mismatch")
 
-        val inputRank = input.shape.rank
-        val kernelRank = kernel.shape.rank
-
-        require(kernelRank >= 3, s"Kernel must have at least 3 dimensions (spatial..., in_channels, out_channels), got $kernelRank")
-        require(inputRank >= 1, s"Input must have at least 1 dimension (channels), got $inputRank")
-
-        val kernelSpatialDims = kernelRank - 2
-        val inputSpatialDims = inputRank - 1
-
-        require(
-          kernelSpatialDims == inputSpatialDims,
-          s"Kernel spatial dimensions ($kernelSpatialDims) must match input spatial dimensions ($inputSpatialDims)"
+        val dimNums = Jax.lax.conv_dimension_numbers(
+          py.Dynamic.global.tuple(Seq(1, 1, 1, 1).toPythonProxy),
+          py.Dynamic.global.tuple(Seq(1, 1, 1, 1).toPythonProxy),
+          py.Dynamic.global.tuple(Seq("NHWC", "HWIO", "NHWC").toPythonProxy)
         )
 
-        // Verify input channels match between input and kernel
-        // For transposeConv: input has OutChannel, should match kernel's last dimension (OutChannel)
-        val inputChannels = input.shape.dimensions(inputRank - 1)
-        val kernelOutChannel = kernel.shape.dimensions(kernelRank - 1)
-        require(
-          inputChannels == kernelOutChannel,
-          s"Input channels mismatch: input has $inputChannels channels (OutChannel), kernel expects $kernelOutChannel"
-        )
-
-        // JAX requires input and kernel to have same rank. Add dummy batch dim if needed.
-        val needsBatchDim = inputRank == kernelRank - 1
-        val actualInputJax = if needsBatchDim then
-          val newShape = 1 +: input.shape.dimensions
-          Jax.jnp.reshape(input.jaxValue, newShape.toPythonProxy)
-        else
-          input.jaxValue
-
-        val strides = Seq.fill(kernelSpatialDims)(stride)
-
-        // Build dimension_numbers for channels-last format
-        val spatialChars = (0 until kernelSpatialDims).map(i => ('A' + i).toChar).mkString
-        val lhsSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-        val rhsSpec = s"${spatialChars}IO" // Kernel: (Spatial..., InChannel, OutChannel)
-        val outSpec = if needsBatchDim then s"N${spatialChars}C" else s"${spatialChars}C"
-
-        val dimNumbers = py.Dynamic.global.tuple(
-          Seq(lhsSpec, rhsSpec, outSpec).toPythonProxy
-        )
-
-        // For the adjoint property <conv(x,k), y> = <x, transposeConv(y,k)>, we need to:
-        // 1. Swap kernel channels: (Spatial..., InChannel, OutChannel) -> (Spatial..., OutChannel, InChannel)
-        // 2. Flip all spatial dimensions
-        var kernelAdjoint = Jax.jnp.swapaxes(kernel.jaxValue, kernelRank - 2, kernelRank - 1)
-
-        // Flip all spatial dimensions (0 to kernelSpatialDims-1)
-        for i <- 0 until kernelSpatialDims do
-          kernelAdjoint = Jax.jnp.flip(kernelAdjoint, axis = i)
-
-        val convResult = Jax.lax.conv_transpose(
-          lhs = actualInputJax,
-          rhs = kernelAdjoint,
-          strides = strides.toPythonProxy,
+        val expanded = Jax.jnp.expand_dims(input.jaxValue, 0)
+        val result = Jax.lax.conv_transpose(
+          lhs = expanded,
+          rhs = kernel.jaxValue,
+          strides = py.Dynamic.global.tuple(Seq(stride, stride).toPythonProxy),
           padding = padding.toString,
-          dimension_numbers = dimNumbers
+          dimension_numbers = dimNums,
+          transpose_kernel = true // Crucial: handles the mathematical adjoint
         )
-
-        // Remove dummy batch dimension if we added one
-        val finalResultJax = if needsBatchDim then
-          val tempShape = Jax.jnp.shape(convResult).bracketAccess(py.Dynamic.global.slice(1, py.Dynamic.global.None))
-          Jax.jnp.reshape(convResult, tempShape)
-        else
-          convResult
-
-        Tensor(finalResultJax)
+        Tensor(Jax.jnp.squeeze(result, 0))
 
   end Convolution
   export Convolution.conv2d, Convolution.transposeConv2d, Convolution.Padding
@@ -602,21 +530,6 @@ object TensorOps:
       type FoldLeft[T <: Tuple, Z, F[_, _]] = T match
         case EmptyTuple => Z
         case h *: t     => FoldLeft[t, F[Z, h], F]
-
-      trait DimExtractor[T]:
-        def extract(t: T): Map[String, Int]
-
-      object DimExtractor:
-        given DimExtractor[EmptyTuple] with
-          def extract(t: EmptyTuple) = Map.empty
-
-        given [L, Tail <: Tuple](using
-            label: Label[L],
-            tailExtractor: DimExtractor[Tail]
-        ): DimExtractor[(Axis[L], Int) *: Tail] with
-          def extract(t: (Axis[L], Int) *: Tail) =
-            val (_, size) = t.head
-            Map(label.name -> size) ++ tailExtractor.extract(t.tail)
 
       @implicitNotFound("The axis ${L} is already present in the tensor shape ${T}.")
       trait AxisAbsent[T, L]
@@ -820,30 +733,30 @@ object TensorOps:
 
         Jax.Dynamic.global.tuple(indicesBuffer.toSeq.toPythonProxy)
 
-      def split[NewL, splitL](newAxis: Axis[NewL], splitAxis: Axis[splitL], interval: Int)(using
-          newLabel: Label[NewL],
-          axisIndex: AxisIndex[T, splitL]
-      ): Tensor[InsertBefore[T, splitL, NewL], V] =
-        val splitIdx = axisIndex.value
-        val names = summon[Labels[T]].names
-        val newNames = names.take(splitIdx) ++ Seq(newLabel.name) ++ names.drop(splitIdx)
-        given Labels[InsertBefore[T, splitL, NewL]] with
-          val names = newNames.toSeq
-        val (before, after) = tensor.shape.dimensions.splitAt(splitIdx)
-        val newShape = before ++ Seq(interval, after.head / interval) ++ after.drop(1)
+      def split[SplitL, NewL1, NewL2, R <: Tuple](
+          splitAxis: Axis[SplitL],
+          newDim1: Dim[NewL1],
+          newDim2: Dim[NewL2]
+      )(using
+          ev: AxisReplacerAll.Aux[T, SplitL, (NewL1, NewL2), R],
+          labels: Labels[R]
+      ): Tensor[R, V] =
+        val (before, after) = tensor.shape.dimensions.splitAt(ev.index)
+        val newShape = before ++ Seq(newDim1._2, newDim2._2) ++ after.drop(1)
+        println(newShape)
         Tensor(
           Jax.jnp.reshape(
             tensor.jaxValue,
-            Jax.Dynamic.global.tuple(
+            py.Dynamic.global.tuple(
               newShape.map(py.Any.from).toPythonProxy
             )
           )
         )
 
-      def chunk[splitL: Label](splitAxis: Axis[splitL], interval: Int)(using
+      def chunk[splitL: Label](splitAxis: Axis[splitL], chunkSize: Int)(using
           axisIndex: AxisIndex[T, splitL]
       ): Seq[Tensor[T, V]] =
-        val res = Jax.jnp.split(tensor.jaxValue, interval, axis = axisIndex.value).as[Seq[Jax.PyDynamic]]
+        val res = Jax.jnp.split(tensor.jaxValue, chunkSize, axis = axisIndex.value).as[Seq[Jax.PyDynamic]]
         res.map(x => Tensor[T, V](x))
 
       def tile = ???
@@ -894,16 +807,46 @@ object TensorOps:
           axesIndices: AxisIndices[T, ExtractLabels[Tuple1[(Axis[L], I)]]]
       )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(axisWithSliceIndex))(value)
 
-      def rearrange[Axes <: Tuple](newOrder: Axes)(using Labels[UnwrapAxes[Axes]]): Tensor[UnwrapAxes[Axes], V] =
-        rearrange[Axes, EmptyTuple](newOrder, EmptyTuple)
+      def rearrange[Axes <: Tuple, Status <: ValidationResult](newOrder: Axes)(using
+          Labels[UnwrapAxes[Axes]]
+      )(using
+          computer: ComputeMissing[UnwrapAxes[Axes], T, EmptyTuple, Status],
+          guard: CheckValid[Status]
+      ): Tensor[UnwrapAxes[Axes], V] =
+        rearrange[Axes, EmptyTuple, Status](newOrder, EmptyTuple)
 
-      def rearrange[Axes <: Tuple, Dims <: Tuple](
+      // Convenience overload for 1 dims (to support error messages with single axis)
+      inline def rearrange[Axes <: Tuple, L1, Status <: ValidationResult](newOrder: Axes, d1: Dim[L1])(using computer: ComputeMissing[UnwrapAxes[Axes], T, UnwrapDims[Tuple1[Dim[L1]]], Status], guard: CheckValid[Status])(using newLabels: Labels[UnwrapAxes[Axes]], extractor: DimExtractor[Tuple1[Dim[L1]]]): Tensor[UnwrapAxes[Axes], V] =
+        rearrange(newOrder, Tuple1(d1))
+
+      // Convenience overload for 2 dims
+      inline def rearrange[Axes <: Tuple, L1, L2, Status <: ValidationResult](newOrder: Axes, d1: Dim[L1], d2: Dim[L2])(using computer: ComputeMissing[UnwrapAxes[Axes], T, UnwrapDims[(Dim[L1], Dim[L2])], Status], guard: CheckValid[Status])(using newLabels: Labels[UnwrapAxes[Axes]], extractor: DimExtractor[(Dim[L1], Dim[L2])]): Tensor[UnwrapAxes[Axes], V] =
+        rearrange(newOrder, (d1, d2))
+
+      // Convenience overload for 3 dims
+      inline def rearrange[Axes <: Tuple, L1, L2, L3, Status <: ValidationResult](newOrder: Axes, d1: Dim[L1], d2: Dim[L2], d3: Dim[L3])(using computer: ComputeMissing[UnwrapAxes[Axes], T, UnwrapDims[(Dim[L1], Dim[L2], Dim[L3])], Status], guard: CheckValid[Status])(using newLabels: Labels[UnwrapAxes[Axes]], extractor: DimExtractor[(Dim[L1], Dim[L2], Dim[L3])]): Tensor[UnwrapAxes[Axes], V] =
+        rearrange(newOrder, (d1, d2, d3))
+
+      // Convenience overload for 4 dims
+      inline def rearrange[Axes <: Tuple, L1, L2, L3, L4, Status <: ValidationResult](newOrder: Axes, d1: Dim[L1], d2: Dim[L2], d3: Dim[L3], d4: Dim[L4])(using computer: ComputeMissing[UnwrapAxes[Axes], T, UnwrapDims[(Dim[L1], Dim[L2], Dim[L3], Dim[L4])], Status], guard: CheckValid[Status])(using newLabels: Labels[UnwrapAxes[Axes]], extractor: DimExtractor[(Dim[L1], Dim[L2], Dim[L3], Dim[L4])]): Tensor[UnwrapAxes[Axes], V] =
+        rearrange(newOrder, (d1, d2, d3, d4))
+
+      def rearrange[Axes <: Tuple, Dims <: Tuple, Status <: ValidationResult](
           newOrder: Axes,
           dims: Dims
+      )(using
+          computer: ComputeMissing[UnwrapAxes[Axes], T, UnwrapDims[Dims], Status],
+          guard: CheckValid[Status]
       )(using
           newLabels: Labels[UnwrapAxes[Axes]],
           extractor: DimExtractor[Dims]
       ): Tensor[UnwrapAxes[Axes], V] =
+        def cleanPatternPrime(pattern: String): String =
+          // Support dimwit.Prime by replacing ' with "Prime"
+          pattern.replaceAll(
+            "'",
+            "Prime"
+          )
         def createEinopsPattern(fromPattern: String, toPattern: String): String =
           def cleanPatternStar(pattern: String): String =
             // to replace all a*b*c in pattern with (a b c), example:
@@ -921,17 +864,21 @@ object TensorOps:
               _.group(1).replace("+", "_")
             )
           def cleanPattern(pattern: String): String =
-            cleanPatternPlus(cleanPatternStar(pattern))
+            cleanPatternPlus(cleanPatternStar(cleanPatternPrime(pattern)))
           s"${cleanPattern(fromPattern)} -> ${cleanPattern(toPattern)}"
         val fromPattern = tensor.shape.labels.mkString(" ")
         val toPattern = newLabels.names.mkString(" ")
         val pattern = createEinopsPattern(fromPattern, toPattern)
         val dimSizesMap = extractor.extract(dims)
+        val cleanDimSizesMap = dimSizesMap.map { case (k, v) =>
+          val newKey = cleanPatternPrime(k)
+          (newKey, v)
+        }
         Tensor(
           Einops.rearrange(
             tensor.jaxValue,
             pattern,
-            kwargsMap = dimSizesMap
+            kwargsMap = cleanDimSizesMap
           )
         )
 
@@ -1177,21 +1124,26 @@ object TensorOps:
 
     extension [V: IsNumber: Writer](scalar: V)
 
-      def +![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] = Tensor0.const(t.vtype)(scalar).broadcastTo(t.shape) + t
-      def -![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] = Tensor0.const(t.vtype)(scalar).broadcastTo(t.shape) - t
-      def *![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] = Tensor0.const(t.vtype)(scalar).broadcastTo(t.shape) * t
+      def +![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
+        given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
+        Tensor0(scalar).broadcastTo(t.shape) + t
+      def -![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
+        given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
+        Tensor0(scalar).broadcastTo(t.shape) - t
+      def *![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
+        given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
+        Tensor0(scalar).broadcastTo(t.shape) * t
 
     extension [V: IsFloat: Writer](scalar: V)
 
-      def /![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] = Tensor0.const(t.vtype)(scalar).broadcastTo(t.shape) / t
+      def /![T <: Tuple: Labels](t: Tensor[T, V]): Tensor[T, V] =
+        given ExecutionType[V] = ExecutionTypeFor[V](t.dtype)
+        Tensor0(scalar).broadcastTo(t.shape) / t
 
   object Tensor1Ops:
 
     extension [L: Label, V](t: Tensor1[L, V])
 
-      def dot(other: Tensor1[L, V]): Tensor0[V] = t.innerDot(other)
-      def innerDot(other: Tensor1[L, V]): Tensor0[V] = t.contract(Axis[L])(other)
-      def outerDot[OtherLabel: Label](other: Tensor1[OtherLabel, V]): Tensor2[L, OtherLabel, V] = t.outerProduct(other)
       def relabelTo[NewL: Label](newAxis: Axis[NewL]): Tensor1[NewL, V] = Tensor[Tuple1[NewL], V](t.jaxValue)
 
   object Tensor2Ops:
@@ -1199,18 +1151,6 @@ object TensorOps:
     extension [L1: Label, L2: Label, V](t: Tensor2[L1, L2, V])
 
       def transpose: Tensor2[L2, L1, V] = t.rearrange((Axis[L2], Axis[L1]))
-
-      @targetName("tensor2MatmulTensor2")
-      def matmul[L3: Label](other: Tensor2[L2, L3, V])(using
-          ev: AxisRemover[(L1, L2), L2, Tuple1[L1]],
-          evOther: AxisRemover[(L2, L3), L2, Tuple1[L3]]
-      ): Tensor2[L1, L3, V] = t.contract(Axis[L2])(other)
-
-      @targetName("tensor2MatmulTensor1")
-      def matmul(other: Tensor1[L2, V])(using
-          ev: AxisRemover[(L1, L2), L2, Tuple1[L1]],
-          evOther: AxisRemover[Tuple1[L2], L2, EmptyTuple]
-      ): Tensor[Tuple1[L1], V] = t.contract(Axis[L2])(other)
 
   export Tensor0Ops.*
   export ValueOps.*

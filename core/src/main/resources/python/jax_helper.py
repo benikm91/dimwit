@@ -144,25 +144,20 @@ def jit(f):
     
     return jax_jit(python_wrapper)
 
-def jit_fn(f):
+def jit_fn(f, jit_kwargs=None):
     """
     Universal JIT wrapper that works with any function.
-    Simply wraps the function in a Python wrapper and JIT compiles it.
-    
-    This is the simplest and most flexible approach - works with:
-    - Regular functions
-    - vmap'ed functions
-    - grad functions
-    - Any combination
-    
-    Args:
-        f: Any function to JIT compile
-    
-    Returns:
-        JIT-compiled version of the function
+    Accepts an optional dictionary of arguments to pass to jax.jit 
+    (e.g., static_argnums, donate_argnums, etc.).
     """
     from jax import jit as jax_jit
+    
+    # Handle default None case
+    if jit_kwargs is None:
+        jit_kwargs = {}
+
     def python_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
     
-    return jax_jit(python_wrapper)
+    # Unpack the dictionary into jax.jit
+    return jax_jit(python_wrapper, **jit_kwargs)

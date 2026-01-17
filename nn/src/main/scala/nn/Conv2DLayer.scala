@@ -11,7 +11,7 @@ object Conv2DLayer:
   )
 
   object Params:
-    given [S1, S2, InChannel, OutChannel]: FloatTensorTree[Params[S1, S2, InChannel, OutChannel]] = FloatTensorTree.derived
+    given floatTensorTree[S1: Label, S2: Label, InChannel: Label, OutChannel: Label]: FloatTensorTree[Params[S1, S2, InChannel, OutChannel]] = FloatTensorTree.derived
     given [S1: Label, S2: Label, InChannel: Label, OutChannel: Label]: ToPyTree[Params[S1, S2, InChannel, OutChannel]] = ToPyTree.derived
 
     /** Initialize convolutional layer parameters

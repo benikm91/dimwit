@@ -55,7 +55,14 @@ lazy val examples = (project in file("examples"))
     // Examples source directory
     Compile / scalaSource := baseDirectory.value,
     Compile / resourceDirectory := baseDirectory.value / "src" / "main" / "resources",
-    scalafmtFailOnErrors := false
+    scalafmtFailOnErrors := false,
+    javaOptions ++= {
+      if (sys.props("os.name").toLowerCase.contains("mac")) {
+        Seq("-XstartOnFirstThread") // For MacOS to run Python with GUI support
+      } else {
+        Seq.empty
+      }
+    }
   )
 
 lazy val docs = (project in file(".dimwit-docs")) // Hidden folder for sbt metadata

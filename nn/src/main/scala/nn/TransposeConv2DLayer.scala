@@ -4,15 +4,13 @@ import dimwit.*
 import dimwit.random.Random.Key
 import dimwit.stats.Normal
 
-object TransposeConvLayer:
+object TransposeConv2DLayer:
 
   case class Params[S1, S2, InChannels, OutChannels](
       kernel: Tensor[S1 *: S2 *: InChannels *: OutChannels *: EmptyTuple, Float]
   )
 
   object Params:
-    given [S1, S2, IC, OC]: FloatTensorTree[Params[S1, S2, IC, OC]] = FloatTensorTree.derived
-    given [S1: Label, S2: Label, IC: Label, OC: Label]: ToPyTree[Params[S1, S2, IC, OC]] = ToPyTree.derived
 
     /** Initialize transpose convolutional layer parameters
       *
@@ -30,8 +28,8 @@ object TransposeConvLayer:
         kernel = Normal.standardNormal(kernelShape).sample(paramKey)
       )
 
-case class TransposeConvLayer[S1: Label, S2: Label, InChannels: Label, OutChannels: Label](
-    params: TransposeConvLayer.Params[S1, S2, InChannels, OutChannels],
+case class TransposeConv2DLayer[S1: Label, S2: Label, InChannels: Label, OutChannels: Label](
+    params: TransposeConv2DLayer.Params[S1, S2, InChannels, OutChannels],
     stride: Int = 1,
     padding: Padding = Padding.SAME
 ):

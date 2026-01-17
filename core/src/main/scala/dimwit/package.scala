@@ -61,16 +61,16 @@ package object dimwit:
   export dimwit.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Tensor3}
   export dimwit.tensor.{Shape, Shape0, Shape1, Shape2, Shape3}
   export dimwit.tensor.{DType, Device}
-  export dimwit.tensor.{VType, ExecutionType, Label, Labels, Axis, AxisIndex, AxisIndices, Dim}
+  export dimwit.tensor.{VType, ExecutionType, ExecutionTypeFor, Label, Labels, Axis, AxisIndex, AxisIndices, Dim}
 
   // Export operations
   export dimwit.tensor.TensorOps.*
 
   // Export automatic differentiation
-  export dimwit.autodiff.{Autodiff, TensorTree, FloatTensorTree, ToPyTree}
+  export dimwit.autodiff.{Autodiff, TensorTree, FloatTensorTree, ToPyTree, Grad}
 
   // Export Just-in-Time compilation
-  export dimwit.jax.Jit.jit
+  export dimwit.jax.Jit.{jit, jitDonating, jitDonatingUnsafe}
 
   object Conversions:
     export dimwit.tensor.Tensor0.{float2FloatTensor, int2IntTensor, int2FloatTensor, boolean2BooleanTensor}
