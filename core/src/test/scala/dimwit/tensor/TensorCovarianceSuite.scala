@@ -24,20 +24,85 @@ class TensorCovarianceSuite extends AnyFunSpec with Matchers:
 
   it("Shape type hierarchy example: Generic function with upper-bounded type parameter"):
     trait Parent derives Label
-    trait Parent1 extends Parent derives Label
-    trait Parent2 extends Parent1 derives Label
-    trait Child1 extends Parent1 derives Label
-    trait Child2 extends Parent2 derives Label
+    trait Child1 extends Parent derives Label
+    trait Child2 extends Parent derives Label
     def genericFunction[T <: Parent: Label](t: Tensor1[T, Float]): Tensor1[T, Float] = t + t
     val child1: Tensor1[Child1, Float] = Tensor(Shape1(Axis[Child1] -> 4)).fill(1f)
     val child2: Tensor1[Child2, Float] = Tensor(Shape1(Axis[Child2] -> 4)).fill(1f)
 
-    val parent = child1 + child2
-    println(parent.axes)
-
     "genericFunction(child1)" should compile
     "genericFunction(child2)" should compile
     "genericFunction(noChild)" shouldNot compile
+
+  describe("Binary-Ops on tensor of different children types must be mapped to common parent type"):
+    trait Parent derives Label
+    trait Child1 extends Parent derives Label
+    trait Child2 extends Parent derives Label
+
+    val child1: Tensor1[Child1, Float] = Tensor(Shape1(Axis[Child1] -> 4)).fill(1f)
+    val child2: Tensor1[Child2, Float] = Tensor(Shape1(Axis[Child2] -> 4)).fill(1f)
+
+    it("+"):
+      val additionParent = child1 + child2
+      additionParent shouldBe a[Tensor1[Parent, Float]]
+      additionParent.axes shouldBe List("Parent")
+
+    it("-"):
+      val subtractionParent = child1 - child2
+      subtractionParent shouldBe a[Tensor1[Parent, Float]]
+      subtractionParent.axes shouldBe List("Parent")
+
+    it("*"):
+      val multiplicationParent = child1 * child2
+      multiplicationParent shouldBe a[Tensor1[Parent, Float]]
+      multiplicationParent.axes shouldBe List("Parent")
+
+    it("/"):
+      val divisionParent = child1 / child2
+      divisionParent shouldBe a[Tensor1[Parent, Float]]
+      divisionParent.axes shouldBe List("Parent")
+
+    it("maximum"):
+      val maximumParent = maximum(child1, child2)
+      maximumParent.shouldBe(a[Tensor1[Parent, Float]])
+      maximumParent.axes.shouldBe(List("Parent"))
+
+    it("minimum"):
+      val minimumParent = minimum(child1, child2)
+      minimumParent.shouldBe(a[Tensor1[Parent, Float]])
+      minimumParent.axes.shouldBe(List("Parent"))
+
+    it("where"):
+      val mask = Tensor(Shape(Axis[Parent] -> 4)).fill(true)
+      val whereParent = where(mask, child1, child2)
+      whereParent shouldBe a[Tensor1[Parent, Float]]
+      whereParent.axes shouldBe List("Parent")
+
+    describe("exclude comparision operations as comparison does not make sense between different child types"):
+      it("<"):
+        "child1 < child1" should compile
+        "child1 < child2" shouldNot compile
+      it("<="):
+        "child1 <= child1" should compile
+        "child1 <= child2" shouldNot compile
+      it(">"):
+        "child1 > child1" should compile
+        "child1 > child2" shouldNot compile
+      it(">="):
+        "child1 >= child1" should compile
+        "child1 >= child2" shouldNot compile
+      it("elementEquals"):
+        "child1.elementEquals(child1)" should compile
+        "child1.elementEquals(child2)" shouldNot compile
+      it("approxElementEquals"):
+        "child1.approxElementEquals(child1)" should compile
+        "child1.approxElementEquals(child2)" shouldNot compile
+
+    it("check: child + parent => parent"):
+      val parent: Tensor1[Parent, Float] = Tensor(Shape1(Axis[Parent] -> 4)).fill(1f)
+      val additionParent = child1 + parent
+      additionParent shouldBe a[Tensor1[Parent, Float]]
+      additionParent.axes shouldBe List("Parent")
 
   it("Value-types example: Logits cannot be added to Probabilities"):
     trait Classes derives Label

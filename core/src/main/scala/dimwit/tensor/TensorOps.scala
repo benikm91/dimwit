@@ -63,8 +63,8 @@ object TensorOps:
     // General operations
     // ---------------------------------------------------------
 
-    def maximum[T <: Tuple: Labels, V](t1: Tensor[T, V], t2: Tensor[T, V]): Tensor[T, V] = Tensor(Jax.jnp.maximum(t1.jaxValue, t2.jaxValue))
-    def minimum[T <: Tuple: Labels, V](t1: Tensor[T, V], t2: Tensor[T, V]): Tensor[T, V] = Tensor(Jax.jnp.minimum(t1.jaxValue, t2.jaxValue))
+    def maximum[T <: Tuple: Labels, T1 <: T, T2 <: T, V](t1: Tensor[T1, V], t2: Tensor[T2, V]): Tensor[T, V] = Tensor(Jax.jnp.maximum(t1.jaxValue, t2.jaxValue))
+    def minimum[T <: Tuple: Labels, T1 <: T, T2 <: T, V](t1: Tensor[T1, V], t2: Tensor[T2, V]): Tensor[T, V] = Tensor(Jax.jnp.minimum(t1.jaxValue, t2.jaxValue))
 
     extension [T <: Tuple: Labels, V](t: Tensor[T, V])
 
@@ -122,12 +122,15 @@ object TensorOps:
     // IsFloat operations
     // ---------------------------------------------------------
 
-    def divide[T <: Tuple: Labels, V: IsFloat](t1: Tensor[T, V], t2: Tensor[T, V]): Tensor[T, V] = Tensor(Jax.jnp.divide(t1.jaxValue, t2.jaxValue))
+    def divide[T <: Tuple: Labels, T1 <: T, T2 <: T, V: IsFloat](t1: Tensor[T1, V], t2: Tensor[T2, V]): Tensor[T, V] = Tensor(Jax.jnp.divide(t1.jaxValue, t2.jaxValue))
     def divideScalar[T <: Tuple: Labels, V: IsFloat](t1: Tensor[T, V], t2: Tensor0[V]): Tensor[T, V] = Tensor(Jax.jnp.divide(t1.jaxValue, t2.jaxValue))
+
+    extension [T <: Tuple: Labels, T1 <: T, T2 <: T, V: IsFloat](t: Tensor[T1, V])
+
+      def /(other: Tensor[T2, V]): Tensor[T, V] = divide(t, other)
 
     extension [T <: Tuple: Labels, V: IsFloat](t: Tensor[T, V])
 
-      def /(other: Tensor[T, V]): Tensor[T, V] = divide(t, other)
       def /![O <: Tuple](other: Tensor[O, V])(using join: Broadcast[T, O, V]): Tensor[join.Out, V] = join.applyTo(t, other)(divide)
 
       def sqrt: Tensor[T, V] = Tensor(Jax.jnp.sqrt(t.jaxValue))
@@ -138,6 +141,7 @@ object TensorOps:
       def tanh: Tensor[T, V] = Tensor(Jax.jnp.tanh(t.jaxValue))
 
       def approxEquals(other: Tensor[T, V], tolerance: Float = 1e-6f): Tensor0[Boolean] = approxElementEquals(other, tolerance).all
+
       def approxElementEquals(other: Tensor[T, V], tolerance: Float = 1e-6f): Tensor[T, Boolean] =
         Tensor(
           Jax.jnp.allclose(
@@ -416,10 +420,10 @@ object TensorOps:
     import Util.*
 
     object TensorWhere:
-      def where[T <: Tuple: Labels, V](
+      def where[T <: Tuple: Labels, T1 <: T, T2 <: T, V](
           condition: Tensor[T, Boolean],
-          x: Tensor[T, V],
-          y: Tensor[T, V]
+          x: Tensor[T1, V],
+          y: Tensor[T2, V]
       ): Tensor[T, V] =
         Tensor(Jax.jnp.where(condition.jaxValue, x.jaxValue, y.jaxValue))
 
