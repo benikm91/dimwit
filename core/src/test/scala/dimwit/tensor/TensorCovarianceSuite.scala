@@ -24,11 +24,16 @@ class TensorCovarianceSuite extends AnyFunSpec with Matchers:
 
   it("Shape type hierarchy example: Generic function with upper-bounded type parameter"):
     trait Parent derives Label
-    trait Child1 extends Parent derives Label
-    trait Child2 extends Parent derives Label
+    trait Parent1 extends Parent derives Label
+    trait Parent2 extends Parent1 derives Label
+    trait Child1 extends Parent1 derives Label
+    trait Child2 extends Parent2 derives Label
     def genericFunction[T <: Parent: Label](t: Tensor1[T, Float]): Tensor1[T, Float] = t + t
     val child1: Tensor1[Child1, Float] = Tensor(Shape1(Axis[Child1] -> 4)).fill(1f)
     val child2: Tensor1[Child2, Float] = Tensor(Shape1(Axis[Child2] -> 4)).fill(1f)
+
+    val parent = child1 + child2
+    println(parent.axes)
 
     "genericFunction(child1)" should compile
     "genericFunction(child2)" should compile
