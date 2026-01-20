@@ -28,7 +28,7 @@ object FloatTensorTree:
     def **![P: FloatTensorTree](p1: P): P = FloatTensorTree[P].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a *! p2)
     def `//!`[P: FloatTensorTree](p1: P): P = FloatTensorTree[P].map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a /! p2)
 
-  extension [P](p1: P)(using pt: FloatTensorTree[P])
+  extension [P](p1: P)(using pt: NonTrivialFloatTensorTree[P])
     def ++(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a + b)
     def ++!(p2: Tensor0[Float]): P = pt.map(p1, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float]) => a +! p2)
     def --(p2: P): P = pt.zipMap(p1, p2, [T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, Float], b: Tensor[T, Float]) => a - b)
@@ -96,3 +96,20 @@ object FloatTensorTree:
         .map:
           case (((e1, e2), e3), inst) => inst.zipMap(e1, e2, e3, f)
       m.fromProduct(Tuple.fromArray(mappedElems.map(_.asInstanceOf[Object]).toArray))
+
+trait IsFloatTensor[P]
+
+object IsFloatTensor:
+  given [T <: Tuple]: IsFloatTensor[Tensor[T, Float]] with {}
+
+trait NonTrivialFloatTensorTree[P] extends FloatTensorTree[P]
+object NonTrivialFloatTensorTree:
+  given [P](using NotGiven[IsFloatTensor[P]], FloatTensorTree[P]): NonTrivialFloatTensorTree[P] with
+    def map(p: P, f: [T <: Tuple] => Labels[T] ?=> (Tensor[T, Float] => Tensor[T, Float])): P =
+      FloatTensorTree[P].map(p, f)
+
+    def zipMap(p1: P, p2: P, f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): P =
+      FloatTensorTree[P].zipMap(p1, p2, f)
+
+    def zipMap(p1: P, p2: P, p3: P, f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): P =
+      FloatTensorTree[P].zipMap(p1, p2, p3, f)

@@ -1,8 +1,8 @@
 package dimwit.autodiff
 
 import dimwit.*
+import dimwit.autodiff.FloatTensorTree.*
 import dimwit.Conversions.given
-import dimwit.*
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 
