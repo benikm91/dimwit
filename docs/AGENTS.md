@@ -288,7 +288,14 @@ val wrong = t + 5.0f  // Use +! instead
 
 Dot products and matrix multiplication.
 
-```scala mdoc
+```scala mdoc:reset
+import dimwit.*
+
+trait A derives Label
+trait B derives Label
+trait C derives Label
+trait D derives Label
+
 // Dot product (vector · vector)
 val v1 = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
 val v2 = Tensor1(Axis[A]).fromArray(Array(4.0f, 5.0f, 6.0f))
@@ -303,13 +310,13 @@ val matrix = Tensor2(Axis[A], Axis[B]).fromArray(
   )
 )
 val vec = Tensor1(Axis[B]).fromArray(Array(1.0f, 2.0f))
-val result: Tensor1[A, Float] = matrix.dot(Axis[B])(vec)
+val result = matrix.dot(Axis[B])(vec)
 println(s"Matrix-vec result: ${result}")  // [5.0, 11.0]
 
 // Matrix-matrix multiplication
 val m1 = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
 val m2 = Tensor2(Axis[B], Axis[C]).fromArray(Array(Array(5.0f, 6.0f), Array(7.0f, 8.0f)))
-val matmul: Tensor2[A, C, Float] = m1.dot(Axis[B])(m2)
+val matmul = m1.dot(Axis[B])(m2)
 ```
 
 **Error: Dimension mismatch in contraction**
@@ -343,9 +350,14 @@ val reshaped = original.ravel  // Flatten to 1D
 val vec1d = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
 val vec2d = vec1d.appendAxis(Axis[B])  // Add new axis B
 
-// Take (indexing)
-val firstRow = original.slice(Axis[A] -> 0)
-val secondRow = original.slice(Axis[A] -> 1)
+// Take (indexing with single index)
+val firstRow = original.slice(Axis[A].at(0))
+val secondRow = original.slice(Axis[A].at(1))
+
+// Take (indexing with range)
+val data3d = Tensor(Shape3(Axis[A] -> 5, Axis[B] -> 3, Axis[C] -> 4)).fill(1.0f)
+val middleSlice = data3d.slice(Axis[A].at(1 until 4))  // Takes indices 1, 2, 3
+println(s"Middle slice shape: ${middleSlice.shape}")  // Shape(A -> 3, B -> 3, C -> 4)
 
 // Concatenate
 val t1 = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f))
