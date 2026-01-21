@@ -175,7 +175,7 @@ object VariationalAutoencoderExample:
       val batchSize = trainData.shape.extent(Axis[S]).size
       val keys = key.split(batchSize)
       val losses = (0 until batchSize).map: idx =>
-        val sample = trainData.slice((Axis[S], idx))
+        val sample = trainData.slice(Axis[S] ~> idx)
         vae.loss(sample.ravel, keys(idx))
       losses.reduce(_ + _) / batchSize.toFloat
 

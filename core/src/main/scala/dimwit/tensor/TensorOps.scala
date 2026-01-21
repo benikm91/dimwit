@@ -363,11 +363,10 @@ object TensorOps:
 
       type SliceIndex = Int | List[Int] | Range | Tensor0[Int]
       type ExtractLabel[X] = X match
-        case (Axis[l], SliceIndex) => l
-        case AxisAtIndex[l]        => l
-        case AxisAtRange[l]        => l
-        case AxisAtIndices[l]      => l
-        case AxisAtTensorIndex[l]  => l
+        case AxisAtIndex[l]       => l
+        case AxisAtRange[l]       => l
+        case AxisAtIndices[l]     => l
+        case AxisAtTensorIndex[l] => l
       type ExtractLabels[Inputs <: Tuple] = Tuple.Map[Inputs, ExtractLabel]
 
       trait SliceLabelExtractor[Inputs <: Tuple, Out <: Tuple]
@@ -376,11 +375,6 @@ object TensorOps:
 
         given empty: SliceLabelExtractor[EmptyTuple, EmptyTuple] =
           new SliceLabelExtractor[EmptyTuple, EmptyTuple] {}
-
-        given consAxisExtent[L, Tail <: Tuple, TailOut <: Tuple](using
-            tailExt: SliceLabelExtractor[Tail, TailOut]
-        ): SliceLabelExtractor[AxisExtent[L] *: Tail, L *: TailOut] =
-          new SliceLabelExtractor[AxisExtent[L] *: Tail, L *: TailOut] {}
 
         // New givens for AxisSelector types
         given consAxisAtIndex[L, Tail <: Tuple, TailOut <: Tuple](using
@@ -691,14 +685,6 @@ object TensorOps:
       ): Tensor[R, V] =
         val pyIndices = tensor.calcPyIndices(inputs, ev.indices)
         Tensor(tensor.jaxValue.bracketAccess(pyIndices))
-
-      def slice[L, I, LabelsToRemove <: Tuple, R <: Tuple](
-          axisWithSliceIndex: (Axis[L], I)
-      )(using
-          sliceExtractor: SliceLabelExtractor[Tuple1[(Axis[L], I)], LabelsToRemove],
-          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[(Axis[L], I)]], R],
-          labels: Labels[R]
-      ): Tensor[R, V] = slice(Tuple1(axisWithSliceIndex))
 
       // Convenience overload for AxisAtIndex
       def slice[L, LabelsToRemove <: Tuple, R <: Tuple](
