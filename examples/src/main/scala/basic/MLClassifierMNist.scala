@@ -16,7 +16,7 @@ def binaryCrossEntropy[L: Label](
   val maxLogit = logits.max
   val stableExp = (logits -! maxLogit).exp
   val logSumExp = stableExp.sum.log + maxLogit
-  val targetLogit = logits.slice(Axis[L] ~> label)
+  val targetLogit = logits.slice(Axis[L].at(label))
   -(targetLogit - logSumExp)
 
 object MLPClassifierMNist:

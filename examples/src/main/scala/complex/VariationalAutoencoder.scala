@@ -175,7 +175,7 @@ object VariationalAutoencoderExample:
       val batchSize = trainData.shape.extent(Axis[S]).size
       val keys = key.split(batchSize)
       val losses = (0 until batchSize).map: idx =>
-        val sample = trainData.slice(Axis[S] ~> idx)
+        val sample = trainData.slice(Axis[S].at(idx))
         vae.loss(sample.ravel, keys(idx))
       losses.reduce(_ + _) / batchSize.toFloat
 
@@ -223,12 +223,12 @@ object VariationalAutoencoderExample:
 
     /* Reconstructing images */
     val reconstructed = testImages
-      .slice(Axis[TestSample] ~> (0 until 64))
+      .slice(Axis[TestSample].at(0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val (mean, logVar) = vae.encoder(sample.ravel)
         val latent = reparametrize(mean, logVar, dataKey) // TODo Key management
         vae.decoder(latent)
-      .relabel(Axis[TestSample] as Axis[Prime[Height] |*| Prime[Width]])
+      .relabel(Axis[TestSample].as(Axis[Prime[Height] |*| Prime[Width]]))
 
     plotImg(
       reconstructed

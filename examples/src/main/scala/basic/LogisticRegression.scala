@@ -85,8 +85,8 @@ object LogisticRegression:
     val perm = Random.permutation(dataInitial.shape.extent(Axis[Sample]))(shuffleKey)
     val testSplitRatio = 0.4f
     val splitIndex = (numSamples * testSplitRatio).toInt
-    val trainPerm = perm.slice(Axis[Sample] ~> (0 until splitIndex))
-    val testPerm = perm.slice(Axis[Sample] ~> (splitIndex until numSamples))
+    val trainPerm = perm.slice(Axis[Sample].at(0 until splitIndex))
+    val testPerm = perm.slice(Axis[Sample].at(splitIndex until numSamples))
 
     // Use the permutations to get our training and validation data
     val trainingDataUnnormalized = dataInitial.take(Axis[Sample])(trainPerm)

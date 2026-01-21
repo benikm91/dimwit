@@ -27,7 +27,7 @@ class RandomSuite extends AnyFunSuite with Matchers:
 
     val splitKeys = key.split(n)
     for i <- 0 until n do
-      val tensorKey = tensorKeys.slice(Axis[Samples] ~> i).item
+      val tensorKey = tensorKeys.slice(Axis[Samples].at(i)).item
       val splitKey = splitKeys(i)
       tensorKey should equal(splitKey)
 
@@ -99,7 +99,7 @@ class RandomSuite extends AnyFunSuite with Matchers:
     // Check that each row in shuffled exists in original by comparing row sums
     // Original row sums are: [3, 12, 21, 30]
     val shuffledRowSums = (0 until 4).map { i =>
-      shuffled.slice(Axis[Row] ~> i).sum.item
+      shuffled.slice(Axis[Row].at(i)).sum.item
     }
     val expectedRowSums = Set(3, 12, 21, 30)
     shuffledRowSums.toSet shouldBe expectedRowSums
