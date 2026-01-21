@@ -1,10 +1,22 @@
 import scala.annotation.targetName
 
 import dimwit.jax.Jax
+import dimwit.tensor.{Axis, AxisExtent, AxisSelector, AxisAtIndex, AxisAtRange, AxisAtIndices, AxisAtTensorIndex}
 
 package object dimwit:
 
   import scala.compiletime.ops.string.+
+
+  // Extension method for creating AxisExtent (dimension with size)
+  extension [T](axis: Axis[T])
+    def ->(size: Int): AxisExtent[T] = AxisExtent(axis, size)
+
+  // Extension methods for creating AxisSelectors (indexing operations)
+  extension [T](axis: Axis[T])
+    def ~>(index: Int): AxisAtIndex[T] = AxisAtIndex(axis, index)
+    def ~>(range: Range): AxisAtRange[T] = AxisAtRange(axis, range)
+    def ~>(indices: Seq[Int]): AxisAtIndices[T] = AxisAtIndices(axis, indices)
+    def ~>(index: Tensor0[Int]): AxisAtTensorIndex[T] = AxisAtTensorIndex(axis, index)
 
   object StringLabelMath:
     infix type *[A <: String, B <: String] = A + "*" + B
@@ -61,7 +73,23 @@ package object dimwit:
   export dimwit.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Tensor3}
   export dimwit.tensor.{Shape, Shape0, Shape1, Shape2, Shape3}
   export dimwit.tensor.{DType, Device}
-  export dimwit.tensor.{VType, ExecutionType, ExecutionTypeFor, Label, Labels, Axis, AxisIndex, AxisIndices, Dim}
+  export dimwit.tensor.{
+    VType,
+    ExecutionType,
+    ExecutionTypeFor,
+    Label,
+    Labels,
+    Axis,
+    AxisIndex,
+    AxisIndices,
+    AxisExtent,
+    AxisSelector,
+    AxisAtIndex,
+    AxisAtRange,
+    AxisAtIndices,
+    AxisAtTensorIndex,
+    as
+  }
 
   // Export operations
   export dimwit.tensor.TensorOps.*

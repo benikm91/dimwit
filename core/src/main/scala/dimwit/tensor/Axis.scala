@@ -2,7 +2,20 @@ package dimwit.tensor
 
 import scala.compiletime.{constValue, erasedValue, summonInline}
 
-type Dim[T] = (Axis[T], Int)
+case class AxisExtent[T](axis: Axis[T], size: Int)
+
+// Axis selectors for indexing operations
+sealed trait AxisSelector[L]:
+  def axis: Axis[L]
+
+case class AxisAtIndex[L](axis: Axis[L], index: Int) extends AxisSelector[L]
+case class AxisAtRange[L](axis: Axis[L], range: Range) extends AxisSelector[L]
+case class AxisAtIndices[L](axis: Axis[L], indices: Seq[Int]) extends AxisSelector[L]
+case class AxisAtTensorIndex[L](axis: Axis[L], index: Tensor0[Int]) extends AxisSelector[L]
+
+// Extension method for axis renaming (creates tuple for relabel)
+extension [T](axis: Axis[T])
+  infix def as[U](newAxis: Axis[U]): (Axis[T], Axis[U]) = (axis, newAxis)
 
 object Axis:
 

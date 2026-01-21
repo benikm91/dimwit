@@ -118,7 +118,7 @@ object VariationalAutoencoderExample:
 
     val heightDim = Axis[Height] -> 28
     val widthDim = Axis[Width] -> 28
-    val heightWidthDim = Axis[Height |*| Width] -> (heightDim._2 * widthDim._2)
+    val heightWidthDim = Axis[Height |*| Width] -> (heightDim.size * widthDim.size)
     val EHidden1Dim = Axis[EHidden1] -> 512
     val EHidden2Dim = Axis[EHidden2] -> 256
     val latentDim = Axis[Latent] -> 20
@@ -126,7 +126,7 @@ object VariationalAutoencoderExample:
     val logVarLatentDim = Axis[LogVarLatent] -> 20
     val DHidden1Dim = Axis[DHidden1] -> 256
     val DHidden2Dim = Axis[DHidden2] -> 512
-    val ReconstructedPixelDim = Axis[ReconstructedPixel] -> (heightDim._2 * widthDim._2)
+    val ReconstructedPixelDim = Axis[ReconstructedPixel] -> (heightDim.size * widthDim.size)
 
     import VariationalAutoencoder.Params
 
@@ -172,10 +172,10 @@ object VariationalAutoencoderExample:
      */
     def batchLoss[S <: Sample: Label](key: Random.Key, trainData: Tensor3[S, Height, Width, Float])(params: Params): Tensor0[Float] =
       val vae = VariationalAutoencoder(params)
-      val batchSize = trainData.shape.dim(Axis[S])._2
+      val batchSize = trainData.shape.extent(Axis[S]).size
       val keys = key.split(batchSize)
       val losses = (0 until batchSize).map: idx =>
-        val sample = trainData.slice(Axis[S] -> idx)
+        val sample = trainData.slice((Axis[S], idx))
         vae.loss(sample.ravel, keys(idx))
       losses.reduce(_ + _) / batchSize.toFloat
 
@@ -223,12 +223,12 @@ object VariationalAutoencoderExample:
 
     /* Reconstructing images */
     val reconstructed = testImages
-      .slice(Axis[TestSample] -> (0 until 64))
+      .slice(Axis[TestSample] ~> (0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val (mean, logVar) = vae.encoder(sample.ravel)
         val latent = reparametrize(mean, logVar, dataKey) // TODo Key management
         vae.decoder(latent)
-      .relabel(Axis[TestSample] -> Axis[Prime[Height] |*| Prime[Width]])
+      .relabel(Axis[TestSample] as Axis[Prime[Height] |*| Prime[Width]])
 
     plotImg(
       reconstructed
@@ -240,7 +240,7 @@ object VariationalAutoencoderExample:
 
     /* Sampling from the latent space */
     val stdNormal = Normal.standardNormal(Shape1(latentDim))
-    val sampled = dataKey.splitvmap(Axis[Prime[Height] |*| Prime[Width]], 64): key =>
+    val sampled = dataKey.splitvmap(Axis[Prime[Height] |*| Prime[Width]] -> 64): key =>
       val z = stdNormal.sample(key)
       vae.decoder(z)
 
