@@ -290,13 +290,13 @@ object TensorOps:
     enum Padding:
       case SAME, VALID
 
-    type Stride1[S1] = Int | AxisExtent[S1]
+    type Stride1[S1] = AxisExtent[S1]
 
     extension [S1: Label, InChannel: Label, V: IsFloat](input: Tensor[S1 *: InChannel *: EmptyTuple, V])
 
       def conv1d[OutChannel: Label](
           kernel: Tensor[S1 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride1[S1] = 1,
+          stride: Stride1[S1] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: OutChannel *: EmptyTuple, V] =
         require(
@@ -322,7 +322,7 @@ object TensorOps:
 
       def transposeConv1d[InChannel: Label](
           kernel: Tensor[S1 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride1[S1] = 1,
+          stride: Stride1[S1] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: InChannel *: EmptyTuple, V] =
         require(
@@ -348,13 +348,13 @@ object TensorOps:
         val unbatchedRes = Jax.jnp.squeeze(convResult, axis = 0) // remove dummy dim
         Tensor(unbatchedRes)
 
-    type Stride2[S1, S2] = Int | (AxisExtent[S1], AxisExtent[S2])
+    type Stride2[S1, S2] = (AxisExtent[S1], AxisExtent[S2])
 
     extension [S1: Label, S2: Label, InChannel: Label, V: IsFloat](input: Tensor[S1 *: S2 *: InChannel *: EmptyTuple, V])
 
       def conv2d[OutChannel: Label](
           kernel: Tensor[S1 *: S2 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride2[S1, S2] = 1,
+          stride: Stride2[S1, S2] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: OutChannel *: EmptyTuple, V] =
         require(
@@ -380,7 +380,7 @@ object TensorOps:
 
       def transposeConv2d[InChannel: Label](
           kernel: Tensor[S1 *: S2 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride2[S1, S2] = 1,
+          stride: Stride2[S1, S2] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: InChannel *: EmptyTuple, V] =
         require(
@@ -409,13 +409,13 @@ object TensorOps:
         val unbatchedRes = Jax.jnp.squeeze(convResult, axis = 0) // remove dummy dim
         Tensor(unbatchedRes)
 
-    type Stride3[S1, S2, S3] = Int | (AxisExtent[S1], AxisExtent[S2], AxisExtent[S3])
+    type Stride3[S1, S2, S3] = (AxisExtent[S1], AxisExtent[S2], AxisExtent[S3])
 
     extension [S1: Label, S2: Label, S3: Label, InChannel: Label, V: IsFloat](input: Tensor[S1 *: S2 *: S3 *: InChannel *: EmptyTuple, V])
 
       def conv3d[OutChannel: Label](
           kernel: Tensor[S1 *: S2 *: S3 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride3[S1, S2, S3] = 1,
+          stride: Stride3[S1, S2, S3] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: S3 *: OutChannel *: EmptyTuple, V] =
         require(
@@ -443,7 +443,7 @@ object TensorOps:
 
       def transposeConv3d[InChannel: Label](
           kernel: Tensor[S1 *: S2 *: S3 *: InChannel *: OutChannel *: EmptyTuple, Float],
-          stride: Stride3[S1, S2, S3] = 1,
+          stride: Stride3[S1, S2, S3] | Int = 1,
           padding: Padding = Padding.SAME
       ): Tensor[S1 *: S2 *: S3 *: InChannel *: EmptyTuple, V] =
         require(
@@ -1103,9 +1103,6 @@ object TensorOps:
       def ravel: Tensor1[FoldLeft[Tuple.Tail[T], Tuple.Head[T], |*|], V] =
         given Labels[Tuple1[FoldLeft[Tuple.Tail[T], Tuple.Head[T], |*|]]] with
           def names = List(summon[Labels[T]].names.mkString("*"))
-        Tensor(Jax.jnp.ravel(tensor.jaxValue))
-
-      def ravelTo[NewAxis: Label](axis: Axis[NewAxis]): Tensor1[NewAxis, V] =
         Tensor(Jax.jnp.ravel(tensor.jaxValue))
 
       def appendAxis[L: Label](axis: Axis[L])(using AxisAbsent[T, L]): Tensor[Tuple.Concat[T, Tuple1[L]], V] =

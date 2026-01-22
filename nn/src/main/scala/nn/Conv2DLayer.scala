@@ -19,7 +19,7 @@ object Conv2DLayer:
 
 case class Conv2DLayer[S1: Label, S2: Label, InChannel: Label, OutChannel: Label](
     params: Conv2DLayer.Params[S1, S2, InChannel, OutChannel],
-    stride: Stride2[S1, S2] = 1,
+    stride: Stride2[S1, S2] | Int = 1,
     padding: Padding = Padding.SAME
 ):
 

@@ -42,7 +42,7 @@ object MNistCNN:
           numHidden1: Int,
           numHidden2: Int
       ): Params =
-        val ks = paramKey.split(3)
+        val keys = paramKey.split(3)
         val kernelHeightDim = Axis[Height] -> 3
         val kernelWidthDim = Axis[Width] -> 3
         val channelDim = Axis[Channel] -> 1
@@ -51,9 +51,9 @@ object MNistCNN:
         val embeddingDim = Axis[ImageEmbedding] -> 7 * 7 * numHidden2
         val outputDim = Axis[Output] -> 10
         Params(
-          conv1 = Conv2DLayer.Params(ks(0))(Shape(kernelHeightDim, kernelWidthDim, channelDim, hiddenDim)),
-          conv2 = Conv2DLayer.Params(ks(1))(Shape(kernelHeightDim, kernelWidthDim, hiddenDim, pixelEmbeddingDim)),
-          output = LinearLayer.Params(ks(2))(embeddingDim, outputDim)
+          conv1 = Conv2DLayer.Params(keys(0))(Shape(kernelHeightDim, kernelWidthDim, channelDim, hiddenDim)),
+          conv2 = Conv2DLayer.Params(keys(1))(Shape(kernelHeightDim, kernelWidthDim, hiddenDim, pixelEmbeddingDim)),
+          output = LinearLayer.Params(keys(2))(embeddingDim, outputDim)
         )
 
   case class CNN(params: CNN.Params) extends Function[Tensor2[Height, Width, Float], Tensor0[Int]]:
