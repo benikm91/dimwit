@@ -2,7 +2,7 @@
 # Uses SBT base image with Java pre-installed, adds Python and JAX CPU
 # ~2-3 GB total size vs ~8 GB for GPU image
 
-FROM sbtscala/scala-sbt:eclipse-temurin-jammy-11.0.20.1_1_1.9.7_3.3.1
+FROM sbtscala/scala-sbt:eclipse-temurin-jammy-17.0.9_9_1.9.7_3.3.1
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /workspace
