@@ -36,3 +36,20 @@ object OnError:
         val Postfix = "\n****\n* END SCALA ERROR\n***\n"
         throw RuntimeException(s"$Prefix $cleanTrace $Postfix")
       case e => throw e
+
+object Memory:
+  import me.shadaj.scalapy.py
+  // TODO move to sensible location
+  def withLocalCleanup[A: ToPyTree](f: => Unit) =
+    py.local:
+      f
+
+  // TODO move to sensible location
+  def withLocalCleanup[A: ToPyTree](f: => A) =
+    val lifeRaft = me.shadaj.scalapy.py.Dynamic.global.list()
+    py.local:
+      val res = f
+      val pyRes = ToPyTree[A].toPyTree(res)
+      lifeRaft.append(pyRes)
+    val res = lifeRaft.pop()
+    ToPyTree[A].fromPyTree(res)

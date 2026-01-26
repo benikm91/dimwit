@@ -25,14 +25,12 @@ object Normal:
     require(loc.shape.dimensions == scale.shape.dimensions, "loc and scale must have the same dimensions")
     new Normal(loc, scale)
 
+  def isotropic[T <: Tuple: Labels](loc: Tensor[T, Float], scale: Tensor0[Float]): Normal[T] = new Normal(loc = loc, scale = scale.broadcastTo(loc.shape))
+  def standardIsotropic[T <: Tuple: Labels](shape: Shape[T], scale: Tensor0[Float]): Normal[T] = isotropic(loc = Tensor(shape).fill(0f), scale = scale)
+
   /** Sample from standard normal distribution N(0, 1) */
   def standardSample(key: Random.Key): Tensor0[Float] = new Normal(Tensor0(0f), Tensor0(1f)).sample(key)
-
-  def standardNormal[T <: Tuple: Labels](shape: Shape[T])(using executionType: ExecutionType[Float]): Normal[T] =
-    Normal(
-      loc = Tensor(shape).fill(0f),
-      scale = Tensor(shape).fill(1f)
-    )
+  def standardNormal[T <: Tuple: Labels](shape: Shape[T])(using executionType: ExecutionType[Float]): Normal[T] = Normal.standardIsotropic(shape, scale = Tensor0(1f))
 
 /** Uniform distribution */
 class Uniform[T <: Tuple: Labels](val low: Tensor[T, Float], val high: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
@@ -45,12 +43,28 @@ class Uniform[T <: Tuple: Labels](val low: Tensor[T, Float], val high: Tensor[T,
       Jax.jrandom.uniform(key.jaxKey, shape = low.shape.dimensions.toPythonProxy, minval = low.jaxValue, maxval = high.jaxValue)
     )
 
+/** Uniform distribution */
+class DiscreteUniform[T <: Tuple: Labels](val min: Tensor[T, Int], val max: Tensor[T, Int]) extends IndependentDistribution[T, Int]:
+
+  override def elementWiseLogProb(x: Tensor[T, Int]): Tensor[T, LogProb] =
+    Tensor.fromPy(VType[LogProb])(jstats.randint.logpmf(x.jaxValue, low = min.jaxValue, high = max.jaxValue))
+
+  override def sample(key: Random.Key): Tensor[T, Int] =
+    Tensor.fromPy(VType[Int])(
+      Jax.jrandom.randint(key.jaxKey, shape = min.shape.dimensions.toPythonProxy, minval = min.jaxValue, maxval = max.jaxValue)
+    )
+
 object Uniform:
 
   /** Create a Uniform distribution from low and high tensors */
   def apply[T <: Tuple: Labels](low: Tensor[T, Float], high: Tensor[T, Float]): Uniform[T] =
     require(low.shape.dimensions == high.shape.dimensions, "Low and high must have the same dimensions")
     new Uniform(low, high)
+
+  /** Create a discrete Uniform distribution from low and high int tensors */
+  def apply[T <: Tuple: Labels](min: Tensor[T, Int], max: Tensor[T, Int]): DiscreteUniform[T] =
+    require(min.shape.dimensions == max.shape.dimensions, "min and max must have the same dimensions")
+    new DiscreteUniform(min, max)
 
 /** Bernoulli distribution */
 class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Int]:
