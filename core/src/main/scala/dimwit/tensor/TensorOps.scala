@@ -1257,7 +1257,9 @@ object TensorOps:
   // -----------------------------------------------------------
   // Common specialized operation names
   // -----------------------------------------------------------
+
   object Tensor0Ops:
+
     extension [V: Reader](scalar: Tensor0[V])
 
       def item: V =
@@ -1298,6 +1300,14 @@ object TensorOps:
     extension [L: Label, V](t: Tensor1[L, V])
 
       def relabelTo[NewL: Label](newAxis: Axis[NewL]): Tensor1[NewL, V] = Tensor[Tuple1[NewL], V](t.jaxValue)
+
+      // TODO generalize to TensorN (like slice)
+      def dynamicSlice(
+          dynamicStart: Tensor0[Int],
+          staticSize: Int
+      ): Tensor1[L, V] =
+        // TODO understand why toPythonCopy is needed and toPythonProxy fails!
+        Tensor(Jax.lax.dynamic_slice(t.jaxValue, Seq(dynamicStart.jaxValue).toPythonCopy, Seq(staticSize).toPythonCopy))
 
   object Tensor2Ops:
 

@@ -41,7 +41,7 @@ object Random:
       this.splitToTensor(dim).vmap(axis)(k => f(k.item))
 
     /** Generate a new key by splitting */
-    def next(): Key = split2()._2
+    def next: Key = split2()._2
 
     override def equals(other: Any): Boolean =
       other match
@@ -72,6 +72,13 @@ object Random:
     */
   def permutation[L: Label](dim: AxisExtent[L])(key: Key): Tensor1[L, Int] =
     Tensor.fromPy(VType[Int])(Jax.jrandom.permutation(key.jaxKey, dim.size))
+
+  // TODO should this be replaced by the a Uniform distribution class for Int?
+  def randint[L: Label, V](axisExtent: AxisExtent[L], min: Int, max: Int)(key: Key)(using
+      executionType: ExecutionType[Int]
+  ): Tensor1[L, Int] =
+    val dtype = executionType.dtype.jaxType
+    Tensor(Jax.jrandom.randint(key.jaxKey, axisExtent.size, min, max, dtype = dtype))
 
   object Key:
     /** Create a random key from an integer seed */

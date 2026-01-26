@@ -124,6 +124,7 @@ object Tensor1:
     def fromArray[A: ExecutionType, V](values: Array[A])(using t2a: ArrayWriter.Aux[A, V]): Tensor[Tuple1[L], V] = Tensor(createShape(values.length)).fromArray(values)
 
   def apply[L: Label](axis: Axis[L]): Tensor1.Factory[L] = Tensor1.Factory(axis)
+  def fromPy[L: Label, V](axis: Axis[L], vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor1[L, V] = new Tensor(jaxValue)
 
 object Tensor2:
 
