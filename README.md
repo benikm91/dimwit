@@ -110,5 +110,4 @@ DimWit requires **Python 3.9+** and **JAX** since it uses JAX as the backend for
 
 ## Contributing
 
-
 If your interests align with our vision, we would love to have you on board! Feel free to open issues or pull requests on GitHub.
