@@ -65,6 +65,18 @@ object ToPyTree:
       val b = tb.fromPyTree(pyTuple.bracketAccess(1))
       (a, b)
 
+  // Handle List[T] -> Python list
+  given listInstance[A](using ta: ToPyTree[A]): ToPyTree[List[A]] with
+    def toPyTree(l: List[A]): Jax.PyAny =
+      val pyItems = l.map(ta.toPyTree)
+      py.Dynamic.global.list(pyItems.toPythonProxy)
+
+    def fromPyTree(p: Jax.PyAny): List[A] =
+      val pyList = p.as[py.Dynamic]
+      val len = py.Dynamic.global.len(pyList).as[Int]
+      List.tabulate(len): i =>
+        ta.fromPyTree(pyList.bracketAccess(i))
+
   inline given derived[P <: Product](using m: Mirror.ProductOf[P]): ToPyTree[P] =
     val elemInstances = summonAll[Tuple.Map[m.MirroredElemTypes, ToPyTree]]
     val elemsList = elemInstances.toList.map(_.asInstanceOf[ToPyTree[Any]])

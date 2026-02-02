@@ -29,6 +29,11 @@ object Normal:
     loc = Tensor(shape).fill(0f),
     scale = Tensor(shape).fill(1f)
   )
+  def apply[T <: Tuple: Labels](loc: Tensor[T, Float], scale: Tensor[T, Float]): Normal[T] = new Normal(loc, scale)
+  def apply[T <: Tuple: Labels](shape: Shape[T], loc: Float, scale: Float): Normal[T] = new Normal(
+    loc = Tensor(shape).fill(loc),
+    scale = Tensor(shape).fill(scale)
+  )
 
 class Uniform[T <: Tuple: Labels](
     val low: Tensor[T, Float],

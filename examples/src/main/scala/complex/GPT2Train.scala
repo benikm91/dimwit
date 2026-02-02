@@ -5,12 +5,67 @@ import dimwit.Conversions.given
 
 import nn.ActivationFunctions.*
 import dimwit.random.Random
+import dimwit.stats.Normal
+import nn.AdamW
+import nn.Adam
+import nn.Loss
+import examples.timed
+import dimwit.jax.PythonSetup
+import src.main.scala.complex.safePyTree
+
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
+import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.charset.StandardCharsets
+import dimwit.jax.Jax
+import dimwit.tensor.DType
+import me.shadaj.scalapy.py
+import me.shadaj.scalapy.py.SeqConverters
+import src.main.scala.complex.loadPyTree
+
+object Config:
+  inline val numIterations = 60_000
+  inline val trainLogInterval = 1
+  inline val evalLogInterval = 10
+  inline val numberOfEvalIterations = 50
+  inline val vocabSize = 65
+  inline val learningRate = 1e-3f
+  inline val beta1 = 0.9f
+  inline val beta2 = 0.99f
+  inline val batchSize = 64
+  inline val contextLength = 256
+  inline val numberOfLayers = 6
+  inline val numberOfHeads = 6
+  inline val extentEmbedding = 384
+  inline val dropout = 0.2
+
+  private inline def validateConfig: Unit =
+    inline if extentEmbedding % numberOfHeads != 0 then
+      import scala.compiletime.{error, constValue}
+      import scala.compiletime.ops.int.ToString
+      scala.compiletime.error(
+        "Config Error: 'extentEmbedding' must be divisible by 'numberOfHeads', but got extentEmbedding = " + constValue[ToString[extentEmbedding.type]] + " and numberOfHeads = " + constValue[ToString[numberOfHeads.type]]
+      )
+
+  validateConfig
+
+import Config.*
+
+// assert(extentEmbedding % numberOfHeads == 0, "Embedding size must be divisible by number of heads")
+val headAxisExtent = Axis[Head] -> numberOfHeads
+val headKeyAxisExtent = Axis[HeadKey] -> extentEmbedding / numberOfHeads
+val headQueryAxisExtent = Axis[HeadQuery] -> extentEmbedding / numberOfHeads
+val headValueAxisExtent = Axis[HeadValue] -> extentEmbedding / numberOfHeads
+val embeddingAxisExtent = Axis[Embedding] -> extentEmbedding
+val embeddingMixedAxisExtent = Axis[EmbeddingMixed] -> extentEmbedding * 4
+val vocabAxisExtent = Axis[Vocab] -> vocabSize
+val contextAxisExtent = Axis[Context] -> contextLength
 
 // Dimensions
-trait Vocab derives Label // 50257
-trait Embedding derives Label // 768
-trait Context derives Label // 1024
-trait EmbeddingMixed derives Label // 3072
+trait Vocab derives Label
+trait Embedding derives Label
+trait Context derives Label
+trait EmbeddingMixed derives Label
 
 trait Batch derives Label
 
@@ -45,34 +100,77 @@ case class MultiHeadAttentionParams(
 case class EmbeddingMixerParams(
     c_fc: LinearLayerParams[Embedding, EmbeddingMixed],
     c_proj: LinearLayerParams[EmbeddingMixed, Embedding]
-)
+) derives ToPyTree
 
 case class TransformerLayerParams(
     ln1: LayerNormalizationParams,
     attn: MultiHeadAttentionParams,
     ln2: LayerNormalizationParams,
     embeddingMixer: EmbeddingMixerParams
-)
+) derives ToPyTree
 
 case class GPT2Params(
     vocabularyEmbeddings: Tensor2[Vocab, Embedding, Float],
     positionalEmbeddings: Tensor2[Context, Embedding, Float],
     layers: List[TransformerLayerParams],
-    outputNormalization: LayerNormalizationParams,
-    output: ProjectionLayerParams[Embedding, Vocab]
-)
+    outputNormalization: LayerNormalizationParams
+) derives ToPyTree
 
 object GPT2Params:
-  def apply(
-      vocabularyEmbeddings: Tensor2[Vocab, Embedding, Float],
-      positionalEmbeddings: Tensor2[Context, Embedding, Float],
-      layers: List[TransformerLayerParams],
-      outputNormalization: LayerNormalizationParams
-  ): GPT2Params =
-    val outputParams = ProjectionLayerParams(
-      vocabularyEmbeddings.transpose // Tying output weights with input embeddings
+
+  def init(initKey: Random.Key): GPT2Params =
+    def initLayerNormalizationParams(): LayerNormalizationParams =
+      LayerNormalizationParams(
+        weight = Tensor(Shape(embeddingAxisExtent)).fill(1f),
+        bias = Tensor(Shape(embeddingAxisExtent)).fill(0f)
+      )
+    def initMutliHeadAttentionParams(key: Random.Key): MultiHeadAttentionParams =
+      MultiHeadAttentionParams(
+        wq = HeadsParams(
+          weights = Normal(Shape(headAxisExtent, embeddingAxisExtent, headQueryAxisExtent), loc = 0f, scale = 0.02f).sample(key),
+          bias = Tensor(Shape(headAxisExtent, headQueryAxisExtent)).fill(0f)
+        ),
+        wk = HeadsParams(
+          weights = Normal(Shape(headAxisExtent, embeddingAxisExtent, headKeyAxisExtent), loc = 0f, scale = 0.02f).sample(key),
+          bias = Tensor(Shape(headAxisExtent, headKeyAxisExtent)).fill(0f)
+        ),
+        wv = HeadsParams(
+          weights = Normal(Shape(headAxisExtent, embeddingAxisExtent, headValueAxisExtent), loc = 0f, scale = 0.02f).sample(key),
+          bias = Tensor(Shape(headAxisExtent, headValueAxisExtent)).fill(0f)
+        ),
+        proj = LinearLayerParams(
+          weight = Normal(Shape(headAxisExtent * headValueAxisExtent, embeddingAxisExtent), loc = 0f, scale = 0.02f).sample(key),
+          bias = Tensor(Shape(embeddingAxisExtent)).fill(0f)
+        )
+      )
+    def initEmbeddingMixerParams(key: Random.Key): EmbeddingMixerParams =
+      val (fcKey, projKey) = key.split2()
+      EmbeddingMixerParams(
+        c_fc = LinearLayerParams(
+          weight = Normal(Shape(embeddingAxisExtent, embeddingMixedAxisExtent), loc = 0f, scale = 0.02f).sample(fcKey),
+          bias = Tensor(Shape(embeddingMixedAxisExtent)).fill(0f)
+        ),
+        c_proj = LinearLayerParams(
+          weight = Normal(Shape(embeddingMixedAxisExtent, embeddingAxisExtent), loc = 0f, scale = 0.02f).sample(projKey),
+          bias = Tensor(Shape(embeddingAxisExtent)).fill(0f)
+        )
+      )
+    def initTransformerLayerParams(key: Random.Key): TransformerLayerParams =
+      val (attnKey, mixKey) = key.split2()
+      TransformerLayerParams(
+        ln1 = initLayerNormalizationParams(),
+        attn = initMutliHeadAttentionParams(attnKey),
+        ln2 = initLayerNormalizationParams(),
+        embeddingMixer = initEmbeddingMixerParams(mixKey)
+      )
+    val keys = initKey.split(4)
+    val layerKeys = keys(2).split(numberOfLayers)
+    GPT2Params(
+      vocabularyEmbeddings = Normal(Shape(vocabAxisExtent, embeddingAxisExtent), loc = 0f, scale = 0.02f).sample(keys(0)),
+      positionalEmbeddings = Normal(Shape(contextAxisExtent, embeddingAxisExtent), loc = 0f, scale = 0.02f).sample(keys(1)),
+      layers = layerKeys.map(initTransformerLayerParams).toList,
+      outputNormalization = initLayerNormalizationParams()
     )
-    GPT2Params(vocabularyEmbeddings, positionalEmbeddings, layers, outputNormalization, outputParams)
 
 case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Tensor2[Batch, Context, Int]):
 
@@ -172,7 +270,10 @@ case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Ten
 
   private val embedder = Embedder(params.vocabularyEmbeddings, params.positionalEmbeddings)
   private val transformerBlock = TransformerBlock(params.layers.map(TransformerLayer(_)))
-  private val outputLayer = OutputLayer(params.outputNormalization, params.output)
+  private val outputLayer = OutputLayer(
+    params.outputNormalization,
+    ProjectionLayerParams(params.vocabularyEmbeddings.transpose) // Tying output weights with input embeddings
+  )
 
   def logits(inputTokens: Tensor2[Batch, Context, Int]): Tensor3[Batch, Context, Vocab, Float] =
     inputTokens.vmap(Axis[Batch]):
@@ -191,61 +292,120 @@ case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Ten
     val res = x.argmax(Axis[Vocab])
     return res
 
-object GPT2Train:
+@main def train(): Unit =
 
-  import java.io.RandomAccessFile
-  import java.nio.channels.FileChannel
-  import java.nio.{ByteBuffer, ByteOrder}
-  import java.nio.charset.StandardCharsets
-  import dimwit.jax.Jax
-  import dimwit.tensor.DType
-  import me.shadaj.scalapy.py
-  import me.shadaj.scalapy.py.SeqConverters
+  trait Data derives Label
 
-  case class TensorInfo(dtype: String, shape: List[Int], start: Long, end: Long)
+  PythonSetup.initialize
+  lazy val np = py.module("numpy")
+  case class Sample(
+      input: Tensor2[Batch, Context, Int],
+      labels: Tensor2[Batch, Context, Int]
+  )
+  def createDataset(key: Random.Key, pathToBinaryFile: String): Iterator[Sample] =
+    val data = Tensor1.fromPy(Axis[Data], VType[Int])(Jax.jnp.asarray(np.memmap(pathToBinaryFile, dtype = np.uint16, mode = "r")))
+    def sliceContextBlockAt(idx: Tensor0[Int]): Tensor1[Context, Int] =
+      data
+        .dynamicSlice(idx, contextLength)
+        .relabelTo(Axis[Context])
+    val numDataPoints = data.shape(Axis[Data])
+    Iterator.unfold(key):
+      case key =>
+        val lastValidIdx = numDataPoints - contextLength
+        val batchExtent = Axis[Batch] -> batchSize
+        val randomBatchIndex = Random.randint(batchExtent, min = 0, max = lastValidIdx)(key)
+        val x = randomBatchIndex.vmap(Axis[Batch])(index => sliceContextBlockAt(index))
+        val y = randomBatchIndex.vmap(Axis[Batch])(index => sliceContextBlockAt(index + 1))
+        Some(Sample(x, y), key.next)
 
-  def main(args: Array[String]): Unit =
-    trait Data derives Label
+  def createTrainDataset(key: Random.Key): Iterator[Sample] =
+    val pathToTrainBinaryFile = "data/nanoGPT/shakespeare_char/train.bin"
+    createDataset(key, pathToTrainBinaryFile)
+  def createValDataset(key: Random.Key): Iterator[Sample] =
+    val pathToValBinaryFile = "data/nanoGPT/shakespeare_char/val.bin"
+    createDataset(key, pathToValBinaryFile)
 
-    val batchSize = 12
-    val blockSize = 1024
+  val initParams = GPT2Params.init(Random.Key(42))
 
-    val np = py.module("numpy")
-    case class Sample(
-        input: Tensor2[Batch, Context, Int],
-        target: Tensor2[Batch, Context, Int]
-    )
-    def createDataset(key: Random.Key, pathToBinaryFile: String): Iterator[Sample] =
-      val data = Tensor1.fromPy(Axis[Data], VType[Int])(Jax.jnp.asarray(np.memmap(pathToBinaryFile, dtype = np.uint16, mode = "r")))
-      def sliceContextBlockAt(idx: Tensor0[Int]): Tensor1[Context, Int] =
-        data
-          .dynamicSlice(idx, blockSize)
-          .relabelTo(Axis[Context])
-      val numDataPoints = data.shape(Axis[Data])
-      Iterator.unfold(key):
-        case key =>
-          val lastValidIdx = numDataPoints - blockSize
-          val batchExtent = Axis[Batch] -> batchSize
-          val randomBatchIndex = Random.randint(batchExtent, min = 0, max = lastValidIdx)(key)
-          val x = randomBatchIndex.vmap(Axis[Batch])(index => sliceContextBlockAt(index))
-          val y = randomBatchIndex.vmap(Axis[Batch])(index => sliceContextBlockAt(index + 1))
-          Some(Sample(x, y), key.next)
+  val adam = Adam(learningRate = learningRate, b1 = beta1, b2 = beta2, epsilon = 1e-8f)
+  val adamW = AdamW(adam, weightDecayFactor = 1e-1f)
+  type AdamWState = adamW.State[GPT2Params]
 
-    def createTraintDataset(key: Random.Key): Iterator[Sample] =
-      val pathToTrainBinaryFile = "data/nanoGPT/train.bin"
-      createDataset(key, pathToTrainBinaryFile)
-    def createValDataset(key: Random.Key): Iterator[Sample] =
-      val pathToValBinaryFile = "data/nanoGPT/val.bin"
-      createDataset(key, pathToValBinaryFile)
+  case class TrainingState(
+      params: GPT2Params,
+      adamWState: AdamWState,
+      loss: Tensor0[Float]
+  )
 
-    println("Training samples:")
-    val trainDataKey = Random.Key(42)
-    for sample <- createTraintDataset(trainDataKey).take(5) do
-      println(sample.input.shape)
-      println(sample.target.shape)
+  def batchLoss(input: Tensor2[Batch, Context, Int], labels: Tensor2[Batch, Context, Int])(params: GPT2Params): Tensor0[Float] =
+    val model = GPT2(params)
+    val logits = model.logits(input)
+    val lossPerSample = zipvmap(Axis[Batch])(labels, logits): (labels, logits) =>
+      val lossPerContextPosition = zipvmap(Axis[Context])(labels, logits): (label, logits) =>
+        Loss.crossEntropy(logits = logits, label = label)
+      lossPerContextPosition.mean
+    lossPerSample.mean
 
-    println("Validation samples:")
-    val valDataKey = Random.Key(42)
-    for sample <- createValDataset(valDataKey).take(5) do
-      println(sample.input.shape)
-      println(sample.target.shape)
+  def gradientStep(
+      input: Tensor2[Batch, Context, Int],
+      labels: Tensor2[Batch, Context, Int],
+      state: TrainingState
+  ): TrainingState =
+    val lossBatch = batchLoss(input, labels)
+    val grads = Autodiff.grad(lossBatch)(state.params)
+    val loss = lossBatch(state.params) // TODO move to gradAndValue
+    val (params, adamWState) = adamW.update(grads, state.params, state.adamWState)
+    TrainingState(params = params, adamWState = adamWState, loss = loss)
+  val jitStep = jitDonatingUnsafe(gradientStep)
+
+  def evaluate(input: Tensor2[Batch, Context, Int], labels: Tensor2[Batch, Context, Int], params: GPT2Params): Tensor0[Float] =
+    batchLoss(input, labels)(params)
+  val jitLossStep = jit(evaluate)
+
+  def miniBatchGradientDescent(
+      samples: Iterator[Sample],
+      startState: TrainingState
+  ): Iterator[TrainingState] =
+    samples.scanLeft(startState):
+      case (state, sample) =>
+        dimwit.gc()
+        jitStep(sample.input, sample.labels, state)
+
+  val trainSampleStream = createTrainDataset(Random.Key(42))
+  val valSampleStream = createValDataset(Random.Key(42))
+  val initState = TrainingState(initParams, adamW.init(initParams), Tensor0(-1f))
+  val trainTrajectory = miniBatchGradientDescent(trainSampleStream, initState)
+  val finalState = trainTrajectory.zipWithIndex
+    .drop(1)
+    .tapEach:
+      case (state, iter) =>
+        if iter % trainLogInterval == 0 then
+          println(
+            List(
+              s"iter $iter",
+              f"loss: ${state.loss.item}%.2f"
+            ).mkString(", ")
+          )
+    .tapEach:
+      case (state, iter) =>
+        if iter % evalLogInterval == 0 then
+          val valLossStream = valSampleStream.map: sample =>
+            dimwit.gc()
+            // TODO: unjitted batchLoss leads to OOM => fragmented memory leads to graph reloading to fail. Maybe OOMSafeGuard makes sense.
+            // batchLoss(sample.input, sample.labels)(state.params).item
+            jitLossStep(sample.input, sample.labels, state.params).item
+          val avgValLoss = valLossStream.take(numberOfEvalIterations).sum / numberOfEvalIterations
+          println(f"Evaluation at iter $iter: validation loss: $avgValLoss%.2f")
+          safePyTree(state.params, f"gpt2_params_iter_$iter.pkl")
+          // dimwit.gc()
+          // Thread.sleep(100)
+    .drop(numIterations - 1) // iterate to final iteration
+    .next()
+
+@main def inference(): Unit =
+  // Load checkpoint
+  PythonSetup.initialize
+  val checkpointPath = "gpt2_params_iter_10.pkl"
+  val state: GPT2Params = loadPyTree[GPT2Params](checkpointPath)
+  val model = GPT2(state)
+  val promptText = "To be, or not to be, that is the question:"
