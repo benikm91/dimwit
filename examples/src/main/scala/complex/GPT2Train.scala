@@ -22,12 +22,13 @@ import dimwit.tensor.DType
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import src.main.scala.complex.loadPyTree
+import dimwit.stats.Categorical
 
 object Config:
   inline val numIterations = 60_000
-  inline val trainLogInterval = 1
-  inline val evalLogInterval = 10
-  inline val numberOfEvalIterations = 50
+  inline val trainLogInterval = 10
+  inline val evalLogInterval = 250
+  inline val numberOfEvalIterations = 200
   inline val vocabSize = 65
   inline val learningRate = 1e-3f
   inline val beta1 = 0.9f
@@ -172,7 +173,7 @@ object GPT2Params:
       outputNormalization = initLayerNormalizationParams()
     )
 
-case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Tensor2[Batch, Context, Int]):
+case class GPT2(params: GPT2Params) extends (Tensor1[Context, Int] => Tensor1[Context, Int]):
 
   private case class LinearLayer[In: Label, Out: Label](params: LinearLayerParams[In, Out]) extends (Tensor1[In, Float] => Tensor1[Out, Float]):
     override def apply(x: Tensor1[In, Float]): Tensor1[Out, Float] =
@@ -275,19 +276,17 @@ case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Ten
     ProjectionLayerParams(params.vocabularyEmbeddings.transpose) // Tying output weights with input embeddings
   )
 
-  def logits(inputTokens: Tensor2[Batch, Context, Int]): Tensor3[Batch, Context, Vocab, Float] =
-    inputTokens.vmap(Axis[Batch]):
-      case tokens =>
-        val startEmbeddings = embedder(tokens)
-        val endEmbeddings = transformerBlock(startEmbeddings)
-        endEmbeddings.vmap(Axis[Context])(x => outputLayer(x))
+  def logits(inputTokens: Tensor1[Context, Int]): Tensor2[Context, Vocab, Float] =
+    val startEmbeddings = embedder(inputTokens)
+    val endEmbeddings = transformerBlock(startEmbeddings)
+    endEmbeddings.vmap(Axis[Context])(x => outputLayer(x))
 
-  def probits(inputTokens: Tensor2[Batch, Context, Int]): Tensor3[Batch, Context, Vocab, Float] =
+  def probits(inputTokens: Tensor1[Context, Int]): Tensor2[Context, Vocab, Float] =
     val x = logits(inputTokens)
     val res = x.vapply(Axis[Vocab])(softmax)
     return res
 
-  def apply(inputTokens: Tensor2[Batch, Context, Int]): Tensor2[Batch, Context, Int] =
+  def apply(inputTokens: Tensor1[Context, Int]): Tensor1[Context, Int] =
     val x = probits(inputTokens)
     val res = x.argmax(Axis[Vocab])
     return res
@@ -339,7 +338,7 @@ case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Ten
 
   def batchLoss(input: Tensor2[Batch, Context, Int], labels: Tensor2[Batch, Context, Int])(params: GPT2Params): Tensor0[Float] =
     val model = GPT2(params)
-    val logits = model.logits(input)
+    val logits = input.vmap(Axis[Batch])(model.logits)
     val lossPerSample = zipvmap(Axis[Batch])(labels, logits): (labels, logits) =>
       val lossPerContextPosition = zipvmap(Axis[Context])(labels, logits): (label, logits) =>
         Loss.crossEntropy(logits = logits, label = label)
@@ -403,9 +402,78 @@ case class GPT2(params: GPT2Params) extends (Tensor2[Batch, Context, Int] => Ten
     .next()
 
 @main def inference(): Unit =
-  // Load checkpoint
+  // 1. Setup
   PythonSetup.initialize
-  val checkpointPath = "gpt2_params_iter_10.pkl"
+  val checkpointPath = "gpt2_params_iter_1250.pkl"
+
+  // 2. Load Weights
+  println(s"Loading model from $checkpointPath...")
   val state: GPT2Params = loadPyTree[GPT2Params](checkpointPath)
   val model = GPT2(state)
-  val promptText = "To be, or not to be, that is the question:"
+
+  // 3. Define Prompt
+  // val promptText = "To be, or not to be, that is the question:"
+  val promptText = "Romeo, Romeo, wherefore art thou"
+  println(s"Prompt: $promptText")
+
+  // 4. Run Generation
+  val result = InferenceUtil.generate(model, promptText, maxNewTokens = 100)
+
+  println("-" * 50)
+  println("Full Generated Text:")
+  println(result)
+
+object InferenceUtil:
+  // Standard characters from the shakespeare_char dataset (Vocab Size = 65)
+  val chars = "\n" + " !$&',-.3:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  println(s"Vocab Size: ${chars.length}")
+  val charToInt = chars.zipWithIndex.toMap
+  val intToChar = chars.zipWithIndex.map(_.swap).toMap
+
+  def encode(s: String): List[Int] = s.map(c => charToInt.getOrElse(c, 0)).toList
+  def decode(l: List[Int]): String = l.map(i => intToChar.getOrElse(i, ' ')).mkString
+
+  def generate(
+      model: GPT2,
+      prompt: String,
+      maxNewTokens: Int,
+      temperatur: Float = 1.0f
+  ): String =
+
+    var currentTokens = encode(prompt)
+
+    val ctxExtent = Axis[Context] -> Config.contextLength
+
+    println(s"Generating $maxNewTokens tokens, starting at prompt length ${currentTokens.length}...")
+
+    val sampleKey = Random.Key.fromTime()
+
+    for i <- 0 until maxNewTokens do
+      val window =
+        if currentTokens.length > Config.contextLength
+        then currentTokens.takeRight(Config.contextLength)
+        else currentTokens
+
+      val effectiveLength = window.length
+
+      val inputTensor = Tensor(Shape(ctxExtent)).fill(0)
+
+      val paddedData = window ++ List.fill(Config.contextLength - effectiveLength)(0)
+
+      val inputData = paddedData.toArray
+      val currentBatch = Tensor(Shape(ctxExtent)).fromArray(inputData)
+      val logits = model.logits(currentBatch)
+
+      val lastTokenIndex = effectiveLength - 1
+      val nextTokenLogits = logits.slice(Axis[Context].at(lastTokenIndex))
+      val nextTokenId =
+        if temperatur == 0f
+        then nextTokenLogits.argmax(Axis[Vocab]).item
+        else Categorical(softmax(nextTokenLogits /! temperatur)).sample(sampleKey).item
+
+      currentTokens = currentTokens :+ nextTokenId
+
+      println((nextTokenId, decode(List(nextTokenId))))
+
+    println()
+    decode(currentTokens)
