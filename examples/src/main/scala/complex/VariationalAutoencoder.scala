@@ -106,7 +106,7 @@ object VariationalAutoencoderExample:
     val numTestSamples = 9728
     val batchSize = 256
     val numSamples = 59904
-    val numEpochs = 120
+    val numEpochs = 100
 
     val (dataKey, trainKey) = Random.Key(42).split2()
     val (initKey, restKey) = trainKey.split2()
@@ -171,12 +171,11 @@ object VariationalAutoencoderExample:
     def batchLoss[S <: Sample: Label](key: Random.Key, trainData: Tensor3[S, Height, Width, Float])(params: Params): Tensor0[Float] =
       val vae = VariationalAutoencoder(params)
       val batchSize = trainData.shape.extent(Axis[S]).size
-      val keys = key.split(batchSize)
-      val losses = (0 until batchSize).map: idx =>
-        val sample = trainData.slice(Axis[S].at(idx))
-        vae.loss(sample.flatten, keys(idx))
-
-      losses.reduce(_ + _) / batchSize.toFloat
+      val keys = key.splitToTensor(Axis[S] -> batchSize)
+      val losses = zipvmap(Axis[S])(trainData, keys):
+        case (sample, key) =>
+          vae.loss(sample.flatten, key.item)
+      losses.sum / batchSize.toFloat
 
     val batches = trainImages.chunk(Axis[TrainSample], numSamples / batchSize)
     val optimizer = GradientDescent(learningRate = Tensor0(learningRate))
@@ -185,13 +184,15 @@ object VariationalAutoencoderExample:
       val (newParams, _) = optimizer.update(grads, params, ())
       newParams
 
-    val jittedTrainBatch = jit(trainBatch)
+    val (jitDonate, jitStep, jitReclaim) = jitDonating(trainBatch)
 
     def trainEpoch(key: Random.Key, epoch: Int, params: Params): Params =
       val batchKeys = key.split(batches.size)
-      batches.zip(batchKeys).foldLeft(params):
-        case (batchParams, (batch, key)) =>
-          jittedTrainBatch(key, batch, batchParams)
+      jitReclaim(
+        batches.zip(batchKeys).foldLeft(jitDonate(params)):
+          case (batchParams, (batch, key)) =>
+            jitStep(key, batch, batchParams)
+      )
 
     val keysForEpochs = dataKey.split(numEpochs)
 
