@@ -43,19 +43,19 @@ class Dirichlet[L: Label](
     )
 
 class Multinomial[L: Label](
-    val n: Int,
+    val n: Tensor0[Int],
     val probs: Tensor1[L, Prob]
 ) extends MultivariateDistribution[L, Int]:
 
   private val categorical: Categorical[L] = Categorical(probs)
 
   override def logProb(x: Tensor1[L, Int]): Tensor0[LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.multinomial.logpmf(x.jaxValue, n = n, p = probs.jaxValue))
+    Tensor.fromPy(VType[LogProb])(jstats.multinomial.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor1[L, Int] =
     // Sample from categorical n times using splitvmap, then bincount
     trait Draws derives Label
-    val draws = key.splitvmap(Axis[Draws] -> n)(k => categorical.sample(k))
+    val draws = key.splitvmap(Axis[Draws] -> n.item)(k => categorical.sample(k))
     Tensor.fromPy(VType[Int])(
       Jax.jnp.bincount(draws.jaxValue, length = probs.shape.dimensions(0))
     )
