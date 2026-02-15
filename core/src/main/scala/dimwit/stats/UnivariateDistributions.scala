@@ -9,7 +9,7 @@ import dimwit.jax.Jax
   * Univariate is a special case with EventShape = EmptyTuple.
   * so this is only used for special cases like Categorical.
   */
-trait UnivariateDistribution[V] extends Distribution[EmptyTuple, V]
+type UnivariateDistribution[V] = Distribution[EmptyTuple, V]
 
 class Categorical[L: Label](val probs: Tensor1[L, Prob]) extends UnivariateDistribution[Int]:
 

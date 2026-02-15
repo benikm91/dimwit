@@ -68,15 +68,15 @@ object Bernoulli:
     new Bernoulli(probs)
 
 /** Binomial distribution - number of successes in n independent Bernoulli trials */
-class Binomial[T <: Tuple: Labels](val n: Int, val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Int]:
+class Binomial[T <: Tuple: Labels](val n: Tensor0[Int], val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Int]:
 
   override def elementWiseLogProb(x: Tensor[T, Int]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.binom.logpmf(x.jaxValue, n = n, p = probs.jaxValue))
+    Tensor.fromPy(VType[LogProb])(jstats.binom.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Int] =
     // Sum n independent Bernoulli(p) trials
     trait Trials derives Label
-    val trialSamples = key.splitvmap(Axis[Trials] -> n) { k =>
+    val trialSamples = key.splitvmap(Axis[Trials] -> n.item) { k =>
       Tensor.fromPy(VType[Int])(Jax.jrandom.bernoulli(k.jaxKey, p = probs.jaxValue))
     }
     trialSamples.sum(Axis[Trials])
@@ -84,8 +84,8 @@ class Binomial[T <: Tuple: Labels](val n: Int, val probs: Tensor[T, Prob]) exten
 object Binomial:
 
   /** Create a Binomial distribution from number of trials and probability tensor */
-  def apply[T <: Tuple: Labels](n: Int, probs: Tensor[T, Prob]): Binomial[T] =
-    require(n > 0, "Number of trials must be positive")
+  def apply[T <: Tuple: Labels](n: Tensor0[Int], probs: Tensor[T, Prob]): Binomial[T] =
+    require(n.item > 0, "Number of trials must be positive")
     new Binomial(n, probs)
 
 /** Cauchy distribution */
@@ -129,19 +129,19 @@ object HalfNormal:
     new HalfNormal(loc, scale)
 
 /** Student's t-distribution */
-class StudentT[T <: Tuple: Labels](val df: Float, val loc: Tensor[T, Float], val scale: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
+class StudentT[T <: Tuple: Labels](val df: Tensor0[Float], val loc: Tensor[T, Float], val scale: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.t.logpdf(x.jaxValue, df = df, loc = loc.jaxValue, scale = scale.jaxValue))
+    Tensor.fromPy(VType[LogProb])(jstats.t.logpdf(x.jaxValue, df = df.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
 
   override def sample(k: Random.Key): Tensor[T, Float] =
     Tensor.fromPy(VType[Float])(
-      Jax.jrandom.t(k.jaxKey, df = df, shape = loc.shape.dimensions.toPythonProxy)
+      Jax.jrandom.t(k.jaxKey, df = df.jaxValue.item().as[Float], shape = loc.shape.dimensions.toPythonProxy)
     ) * scale + loc
 
 object StudentT:
 
   /** Create a Student's t-distribution from parameters */
-  def apply[T <: Tuple: Labels](df: Float, loc: Tensor[T, Float], scale: Tensor[T, Float]): StudentT[T] =
+  def apply[T <: Tuple: Labels](df: Tensor0[Float], loc: Tensor[T, Float], scale: Tensor[T, Float]): StudentT[T] =
     require(loc.shape.dimensions == scale.shape.dimensions, "loc, and scale must have the same dimensions")
     new StudentT(df, loc, scale)
