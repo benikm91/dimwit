@@ -68,7 +68,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
   describe("Bernoulli"):
     it("logProbs matches JAX"):
       val probs = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(0.3f, 0.5f, 0.8f))
-      val x = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(0, 1, 1))
+      val x = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(false, true, true))
 
       val dist = Bernoulli(Prob(probs))
       val scalaLogProbs = dist.elementWiseLogProb(x)
