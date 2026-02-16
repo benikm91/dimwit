@@ -812,7 +812,7 @@ object TensorOps:
             case AxisAtRange(_, range) =>
               indicesBuffer(dimIndex) = PySlice(range.head, range.last + 1, range.step)
             case AxisAtIndices(_, indices) =>
-              indicesBuffer(dimIndex) = indices.map(py.Any.from).toPythonProxy
+              indicesBuffer(dimIndex) = indices.map(py.Any.from).toPythonCopy // TODO find out why Copy is needed here
             case AxisAtTensorIndex(_, tensorIdx) =>
               indicesBuffer(dimIndex) = tensorIdx.jaxValue
             // Backward compatibility with tuples
@@ -963,29 +963,51 @@ object TensorOps:
         val result = Jax.jnp.take(tensor.jaxValue, indices.jaxValue, axis = ev.index)
         Tensor(result)
 
-      def set[Inputs <: Tuple, R <: Tuple](
+      def set[Inputs <: Tuple, LabelsToRemove <: Tuple, R <: Tuple](
           inputs: Inputs
       )(using
-          labels: Labels[T],
-          axesIndices: AxisIndices[T, ExtractLabels[Inputs]]
+          sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
+          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Inputs], R],
+          labels: Labels[T]
       )(value: Tensor[R, V]): Tensor[T, V] =
-        val pyIndices = tensor.calcPyIndices(inputs, axesIndices.indices)
+        val pyIndices = tensor.calcPyIndices(inputs, ev.indices)
         val result = tensor.jaxValue.at.bracketAccess(pyIndices).set(value.jaxValue)
         Tensor(result)
 
-      def set[L, I, LabelsToRemove <: Tuple, R <: Tuple](
-          axisWithSliceIndex: (Axis[L], I)
+      // Convenience overload for AxisAtIndex
+      def set[L, LabelsToRemove <: Tuple, R <: Tuple](
+          selector: AxisAtIndex[L]
       )(using
-          labels: Labels[T],
-          axesIndices: AxisIndices[T, ExtractLabels[Tuple1[(Axis[L], I)]]]
-      )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(axisWithSliceIndex))(value)
+          sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndex[L]], LabelsToRemove],
+          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndex[L]]], R],
+          labels: Labels[T]
+      )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(selector))(value)
 
-      // Convenience overload for AxisSelector
-      def set[L, R <: Tuple](
-          selector: AxisSelector[L]
+      // Convenience overload for AxisAtRange
+      def set[L, LabelsToRemove <: Tuple, R <: Tuple](
+          selector: AxisAtRange[L]
       )(using
-          labels: Labels[T],
-          axesIndices: AxisIndices[T, ExtractLabels[Tuple1[AxisSelector[L]]]]
+          sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtRange[L]], LabelsToRemove],
+          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtRange[L]]], R],
+          labels: Labels[T]
+      )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+
+      // Convenience overload for AxisAtIndices
+      def set[L, LabelsToRemove <: Tuple, R <: Tuple](
+          selector: AxisAtIndices[L]
+      )(using
+          sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndices[L]], LabelsToRemove],
+          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndices[L]]], R],
+          labels: Labels[T]
+      )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+
+      // Convenience overload for AxisAtTensorIndex
+      def set[L, LabelsToRemove <: Tuple, R <: Tuple](
+          selector: AxisAtTensorIndex[L]
+      )(using
+          sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtTensorIndex[L]], LabelsToRemove],
+          ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtTensorIndex[L]]], R],
+          labels: Labels[T]
       )(value: Tensor[R, V]): Tensor[T, V] = set(Tuple1(selector))(value)
 
       def rearrange[Axes <: Tuple, Status <: ValidationResult](newOrder: Axes)(using
