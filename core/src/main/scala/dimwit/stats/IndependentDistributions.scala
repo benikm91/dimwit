@@ -53,15 +53,10 @@ object Uniform:
     new Uniform(low, high)
 
 /** Bernoulli distribution */
-class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends Distribution[T, Boolean]:
+class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Boolean]:
 
   def elementWiseLogProb(x: Tensor[T, Boolean]): Tensor[T, LogProb] =
-    // Convert Boolean to Int for logpmf (false -> 0, true -> 1)
     Tensor.fromPy(VType[LogProb])(jstats.bernoulli.logpmf(x.asInt.jaxValue, p = probs.jaxValue))
-
-  override def logProb(x: Tensor[T, Boolean]): Tensor0[LogProb] =
-    // Convert to Float for summation (Boolean doesn't support sum directly)
-    LogProb(elementWiseLogProb(x).asFloat.sum)
 
   override def sample(key: Random.Key): Tensor[T, Boolean] =
     Tensor.fromPy(VType[Boolean])(Jax.jrandom.bernoulli(key.jaxKey, p = probs.jaxValue))
