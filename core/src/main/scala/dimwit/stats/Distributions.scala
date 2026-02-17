@@ -58,7 +58,7 @@ trait Distribution[EventShape <: Tuple: Labels, V]:
   * @tparam EventShape Shape of the tensor of independent values
   * @tparam V Value type
   */
-trait IndependentDistribution[EventShape <: Tuple: Labels, V: ExecutionType: IsNumber] extends Distribution[EventShape, V]:
+trait IndependentDistribution[EventShape <: Tuple: Labels, V: ExecutionType] extends Distribution[EventShape, V]:
 
   /** Element-wise log probabilities (primitive operation) */
   def elementWiseLogProb(x: Tensor[EventShape, V]): Tensor[EventShape, LogProb]
