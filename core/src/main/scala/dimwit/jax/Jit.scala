@@ -9,7 +9,6 @@ import dimwit.jax.Jax.PyDynamic
 import me.shadaj.scalapy.py.PythonException
 import dimwit.OnError
 import scala.annotation.targetName
-import dimwit.Memory.withLocalCleanup
 
 object Jit:
 
