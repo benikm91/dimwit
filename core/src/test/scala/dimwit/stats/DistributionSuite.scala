@@ -12,6 +12,8 @@ import me.shadaj.scalapy.py.SeqConverters
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 
+import dimwit.python.PyBridge.{liftPyTensor0, liftPyTensor1}
+
 class DistributionSuite extends AnyFunSpec with Matchers:
 
   trait A derives Label
@@ -25,7 +27,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Normal(loc, scale)
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.norm.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -49,7 +51,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Uniform(low, high)
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.uniform.logpdf(x.jaxValue, loc = low.jaxValue, scale = (high - low).jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -72,7 +74,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Bernoulli(Prob(probs))
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.bernoulli.logpmf(x.jaxValue, p = probs.jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -95,7 +97,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Binomial(n, Prob(probs))
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.binom.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -141,7 +143,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Cauchy(loc, scale)
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.cauchy.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -166,7 +168,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
       val dist = HalfNormal(loc, scale)
       val scalaLogProbs = dist.elementWiseLogProb(x)
       // Compute expected manually: log(2) + norm.logpdf for x >= loc
-      val expectedLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val expectedLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.norm.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
       ) +! math.log(2.0).toFloat
       scalaLogProbs.asFloat should approxEqual(expectedLogProbs)
@@ -193,7 +195,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = StudentT(df, loc, scale)
       val scalaLogProbs = dist.elementWiseLogProb(x)
-      val jaxLogProbs = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val jaxLogProbs = liftPyTensor1(Axis[A], VType[Float])(
         jstats.t.logpdf(x.jaxValue, df = df.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
       )
       scalaLogProbs.asFloat should approxEqual(jaxLogProbs)
@@ -224,7 +226,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = MVNormal(mean, cov)
       val scalaLogProb = dist.logProb(x)
-      val jaxLogProb = Tensor.fromPy[EmptyTuple, Float](VType[Float])(
+      val jaxLogProb = liftPyTensor0(VType[Float])(
         jstats.multivariate_normal.logpdf(x.jaxValue, mean = mean.jaxValue, cov = cov.jaxValue)
       )
       scalaLogProb.asFloat should approxEqual(jaxLogProb)
@@ -248,7 +250,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Dirichlet(concentration)
       val scalaLogProb = dist.logProb(x)
-      val jaxLogProb = Tensor.fromPy[EmptyTuple, Float](VType[Float])(
+      val jaxLogProb = liftPyTensor0(VType[Float])(
         jstats.dirichlet.logpdf(x.jaxValue, alpha = concentration.jaxValue)
       )
       scalaLogProb.asFloat should approxEqual(jaxLogProb)
@@ -273,7 +275,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
 
       val dist = Multinomial[A](n, probs)
       val scalaLogProb = dist.logProb(x)
-      val jaxLogProb = Tensor.fromPy[EmptyTuple, Float](VType[Float])(
+      val jaxLogProb = liftPyTensor0(VType[Float])(
         jstats.multinomial.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue)
       )
       scalaLogProb.asFloat should approxEqual(jaxLogProb)
@@ -306,7 +308,7 @@ class DistributionSuite extends AnyFunSpec with Matchers:
       val key = Random.Key(42)
       val numSamples = 10000
       val samples = key.splitvmap(Axis[Samples] -> numSamples)(k => categorical.sample(k))
-      val counts = Tensor.fromPy[Tuple1[A], Float](VType[Float])(
+      val counts = liftPyTensor1(Axis[A], VType[Float])(
         Jax.jnp.bincount(samples.jaxValue, minlength = 4).astype(Jax.jnp.float32)
       )
       val frequencies = counts *! (1.0f / numSamples.toFloat)

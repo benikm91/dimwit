@@ -15,6 +15,7 @@ import nn.ActivationFunctions.sigmoid
 import dimwit.random.Random.Key
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
+import dimwit.python.PyBridge.toPyTensor
 type Pixel = Height |*| Width
 type ReconstructedPixel = Height |*| Width
 
@@ -216,7 +217,7 @@ object VariationalAutoencoderExample:
     def plotImg[H, W](img2d: Tensor2[H, W, Float]): Unit =
       import me.shadaj.scalapy.py
       val plt = py.module("matplotlib.pyplot")
-      plt.imshow(img2d.jaxValue, cmap = "gray")
+      plt.imshow(toPyTensor(img2d), cmap = "gray")
       plt.show()
 
     val vae = VariationalAutoencoder(trainedParams)

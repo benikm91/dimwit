@@ -7,15 +7,16 @@ import dimwit.jax.Jax.PyDynamic
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import dimwit.random.Random
+import dimwit.python.PyBridge.liftPyTensor
 
 /** Normal (Gaussian) distribution */
 class Normal[T <: Tuple: Labels](val loc: Tensor[T, Float], val scale: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.norm.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
+    liftPyTensor(jstats.norm.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Float] =
-    val standardNormal = Tensor.fromPy[T, Float](VType[Float])(Jax.jrandom.normal(key.jaxKey, loc.shape.dimensions.toPythonProxy))
+    val standardNormal = liftPyTensor(loc.shape, loc.vtype)(Jax.jrandom.normal(key.jaxKey, loc.shape.dimensions.toPythonProxy))
     standardNormal * scale + loc
 
 object Normal:
@@ -36,10 +37,10 @@ object Normal:
 class Uniform[T <: Tuple: Labels](val low: Tensor[T, Float], val high: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.uniform.logpdf(x.jaxValue, loc = low.jaxValue, scale = (high - low).jaxValue))
+    liftPyTensor(jstats.uniform.logpdf(x.jaxValue, loc = low.jaxValue, scale = (high - low).jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Float] =
-    Tensor.fromPy(VType[Float])(
+    liftPyTensor(
       Jax.jrandom.uniform(key.jaxKey, shape = low.shape.dimensions.toPythonProxy, minval = low.jaxValue, maxval = high.jaxValue)
     )
 
@@ -47,10 +48,10 @@ class Uniform[T <: Tuple: Labels](val low: Tensor[T, Float], val high: Tensor[T,
 class DiscreteUniform[T <: Tuple: Labels](val min: Tensor[T, Int], val max: Tensor[T, Int]) extends IndependentDistribution[T, Int]:
 
   override def elementWiseLogProb(x: Tensor[T, Int]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.randint.logpmf(x.jaxValue, low = min.jaxValue, high = max.jaxValue))
+    liftPyTensor(jstats.randint.logpmf(x.jaxValue, low = min.jaxValue, high = max.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Int] =
-    Tensor.fromPy(VType[Int])(
+    liftPyTensor(
       Jax.jrandom.randint(key.jaxKey, shape = min.shape.dimensions.toPythonProxy, minval = min.jaxValue, maxval = max.jaxValue)
     )
 
@@ -69,11 +70,11 @@ object Uniform:
 /** Bernoulli distribution */
 class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Boolean]:
 
-  def elementWiseLogProb(x: Tensor[T, Boolean]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.bernoulli.logpmf(x.jaxValue, p = probs.jaxValue))
+  override def elementWiseLogProb(x: Tensor[T, Boolean]): Tensor[T, LogProb] =
+    liftPyTensor(jstats.bernoulli.logpmf(x.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Boolean] =
-    Tensor.fromPy(VType[Boolean])(Jax.jrandom.bernoulli(key.jaxKey, p = probs.jaxValue))
+    liftPyTensor(Jax.jrandom.bernoulli(key.jaxKey, p = probs.jaxValue))
 
 object Bernoulli:
 
@@ -85,14 +86,13 @@ object Bernoulli:
 class Binomial[T <: Tuple: Labels](val n: Tensor0[Int], val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Int]:
 
   override def elementWiseLogProb(x: Tensor[T, Int]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.binom.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
+    liftPyTensor(jstats.binom.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Int] =
     // Sum n independent Bernoulli(p) trials
     trait Trials derives Label
-    val trialSamples = key.splitvmap(Axis[Trials] -> n.item) { k =>
-      Tensor.fromPy(VType[Boolean])(Jax.jrandom.bernoulli(k.jaxKey, p = probs.jaxValue))
-    }
+    val trialSamples = key.splitvmap(Axis[Trials] -> n.item): k =>
+      liftPyTensor(probs.shape, VType[Int])(Jax.jrandom.bernoulli(k.jaxKey, p = probs.jaxValue))
     trialSamples.asInt.sum(Axis[Trials])
 
 object Binomial:
@@ -106,10 +106,10 @@ object Binomial:
 class Cauchy[T <: Tuple: Labels](val loc: Tensor[T, Float], val scale: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.cauchy.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
+    liftPyTensor(jstats.cauchy.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
 
   override def sample(k: Random.Key): Tensor[T, Float] =
-    Tensor.fromPy(VType[Float])(Jax.jrandom.cauchy(k.jaxKey, shape = loc.shape.dimensions.toPythonProxy)) * scale + loc
+    liftPyTensor(Jax.jrandom.cauchy(k.jaxKey, shape = loc.shape.dimensions.toPythonProxy)) * scale + loc
 
 object Cauchy:
 
@@ -123,7 +123,7 @@ class HalfNormal[T <: Tuple: Labels](val loc: Tensor[T, Float], val scale: Tenso
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
     // Half-normal logpdf = log(2) + norm.logpdf for x >= loc, -inf otherwise
-    val rawLogProb = Tensor.fromPy[T, LogProb](VType[LogProb])(
+    val rawLogProb = liftPyTensor(x.shape, VType[LogProb])(
       Jax.jnp.log(2.0) + jstats.norm.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
     )
     val valid = x >= loc
@@ -132,7 +132,7 @@ class HalfNormal[T <: Tuple: Labels](val loc: Tensor[T, Float], val scale: Tenso
 
   override def sample(k: Random.Key): Tensor[T, Float] =
     // Half-normal: |N(0,1)| * scale + loc
-    val normal = Tensor.fromPy[T, Float](VType[Float])(Jax.jrandom.normal(k.jaxKey, shape = loc.shape.dimensions.toPythonProxy))
+    val normal = liftPyTensor(loc.shape, VType[Float])(Jax.jrandom.normal(k.jaxKey, shape = loc.shape.dimensions.toPythonProxy))
     normal.abs * scale + loc
 
 object HalfNormal:
@@ -146,10 +146,10 @@ object HalfNormal:
 class StudentT[T <: Tuple: Labels](val df: Tensor0[Float], val loc: Tensor[T, Float], val scale: Tensor[T, Float]) extends IndependentDistribution[T, Float]:
 
   override def elementWiseLogProb(x: Tensor[T, Float]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.t.logpdf(x.jaxValue, df = df.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
+    liftPyTensor(jstats.t.logpdf(x.jaxValue, df = df.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue))
 
   override def sample(k: Random.Key): Tensor[T, Float] =
-    Tensor.fromPy(VType[Float])(
+    liftPyTensor(
       Jax.jrandom.t(k.jaxKey, df = df.jaxValue.item().as[Float], shape = loc.shape.dimensions.toPythonProxy)
     ) * scale + loc
 
