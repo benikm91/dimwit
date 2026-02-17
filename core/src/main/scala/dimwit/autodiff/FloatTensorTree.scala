@@ -58,6 +58,53 @@ object FloatTensorTree:
       import TensorOps.retag
       f[Q](using n)(p1.retag[Q](using n), p2.retag[Q](using n), p3.retag[Q](using n))
 
+  // Handle List[T] -> Python list
+  given listInstance[A](using ta: FloatTensorTree[A]): FloatTensorTree[List[A]] with
+    def map(l: List[A], f: [T <: Tuple] => Labels[T] ?=> (Tensor[T, Float] => Tensor[T, Float])): List[A] =
+      l.map(elem => ta.map(elem, f))
+
+    def zipMap(l1: List[A], l2: List[A], f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])): List[A] =
+      require(l1.size == l2.size, s"ZipMap mismatch: List sizes differ (${l1.size} vs ${l2.size})")
+      l1.zip(l2).map { case (e1, e2) => ta.zipMap(e1, e2, f) }
+
+    def zipMap(
+        l1: List[A],
+        l2: List[A],
+        l3: List[A],
+        f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])
+    ): List[A] =
+      require(l1.size == l2.size && l2.size == l3.size, "ZipMap mismatch: List sizes differ")
+      // Zip 3 lists together
+      l1.lazyZip(l2).lazyZip(l3).map { case (e1, e2, e3) =>
+        ta.zipMap(e1, e2, e3, f)
+      }.toList
+
+  // Handle Map[K, A] -> Python dict
+  given mapInstance[K, A](using ta: FloatTensorTree[A]): FloatTensorTree[Map[K, A]] with
+    def map(m: Map[K, A], f: [T <: Tuple] => Labels[T] ?=> (Tensor[T, Float] => Tensor[T, Float])): Map[K, A] =
+      m.map { case (k, v) => k -> ta.map(v, f) }
+
+    def zipMap(
+        m1: Map[K, A],
+        m2: Map[K, A],
+        f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])
+    ): Map[K, A] =
+      require(m1.keySet == m2.keySet, "ZipMap mismatch: Map keysets differ")
+      m1.map { case (k, v1) =>
+        k -> ta.zipMap(v1, m2(k), f)
+      }
+
+    def zipMap(
+        m1: Map[K, A],
+        m2: Map[K, A],
+        m3: Map[K, A],
+        f: [T <: Tuple] => Labels[T] ?=> ((Tensor[T, Float], Tensor[T, Float], Tensor[T, Float]) => Tensor[T, Float])
+    ): Map[K, A] =
+      require(m1.keySet == m2.keySet && m2.keySet == m3.keySet, "ZipMap mismatch: Map keysets differ")
+      m1.map { case (k, v1) =>
+        k -> ta.zipMap(v1, m2(k), m3(k), f)
+      }
+
   inline given derived[P <: Product](using m: Mirror.ProductOf[P]): FloatTensorTree[P] =
     val elemInstances = summonAll[Tuple.Map[m.MirroredElemTypes, FloatTensorTree]]
     val instances = elemInstances.toList.asInstanceOf[List[FloatTensorTree[Any]]]

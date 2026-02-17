@@ -102,8 +102,8 @@ case class Adam(
   type State[P] = AdamState[P]
 
   def init[Params: ToPyTree: FloatTensorTree](params: Params): State[Params] =
-    val zeros = params.fillCopy(0f)
-    AdamState(zeros, zeros, b1 = 1f, b2 = 1f)
+    def zeros = params.fillCopy(0f)
+    AdamState(zeros, zeros, b1 = Tensor0(1f), b2 = Tensor0(1f))
 
   def update[Params: ToPyTree: FloatTensorTree](
       gradients: Grad[Params],

@@ -65,6 +65,41 @@ object ToPyTree:
       val b = tb.fromPyTree(pyTuple.bracketAccess(1))
       (a, b)
 
+  // Handle List[T] -> Python list
+  given listInstance[A](using ta: ToPyTree[A]): ToPyTree[List[A]] with
+    def toPyTree(l: List[A]): Jax.PyAny =
+      val pyItems = l.map(ta.toPyTree)
+      py.Dynamic.global.list(pyItems.toPythonProxy)
+
+    def fromPyTree(p: Jax.PyAny): List[A] =
+      val pyList = p.as[py.Dynamic]
+      val len = py.Dynamic.global.len(pyList).as[Int]
+      List.tabulate(len): i =>
+        ta.fromPyTree(pyList.bracketAccess(i))
+
+  // Handle String -> Python str (e.g., for Map keys)
+  given stringToPyTree: ToPyTree[String] with
+    def toPyTree(s: String): Jax.PyAny = py.Dynamic.global.str(s)
+    def fromPyTree(p: Jax.PyAny): String = p.as[String]
+
+  // Handle Map[K, V] -> Python dict
+  given mapInstance[K, V](using kt: ToPyTree[K], vt: ToPyTree[V]): ToPyTree[Map[K, V]] with
+    def toPyTree(m: Map[K, V]): Jax.PyAny =
+      val pyItems = m.toList.map { case (k, v) =>
+        py.Dynamic.global.tuple(Seq(kt.toPyTree(k), vt.toPyTree(v)).toPythonProxy)
+      }
+      py.Dynamic.global.dict(pyItems.toPythonProxy)
+
+    def fromPyTree(p: Jax.PyAny): Map[K, V] =
+      val itemsList = py.Dynamic.global.list(p.as[py.Dynamic].items())
+      val len = py.Dynamic.global.len(itemsList).as[Int]
+      List.tabulate(len) { i =>
+        val itemTuple = itemsList.bracketAccess(i)
+        val k = kt.fromPyTree(itemTuple.bracketAccess(0))
+        val v = vt.fromPyTree(itemTuple.bracketAccess(1))
+        k -> v
+      }.toMap
+
   inline given derived[P <: Product](using m: Mirror.ProductOf[P]): ToPyTree[P] =
     val elemInstances = summonAll[Tuple.Map[m.MirroredElemTypes, ToPyTree]]
     val elemsList = elemInstances.toList.map(_.asInstanceOf[ToPyTree[Any]])

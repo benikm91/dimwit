@@ -1258,14 +1258,14 @@ object TensorOps:
 
         Tensor(Jax.jax_helper.vmap(fpy, ev.index)(t.jaxValue))
 
-      def vapply[L: Label, NewL, R <: Tuple](
+      def vapply[L: Label, NewL, R <: Tuple, NewV](
           axis: Axis[L]
       )(
-          f: Tensor[Tuple1[L], V] => Tensor[Tuple1[NewL], V]
+          f: Tensor[Tuple1[L], V] => Tensor[Tuple1[NewL], NewV]
       )(using
           ev: AxisReplacer.Aux[T, L, NewL, R],
           labels: Labels[R]
-      ): Tensor[R, V] =
+      ): Tensor[R, NewV] =
         val fpy = (jxpr: Jax.PyDynamic) =>
           OnError.traceStack:
             val inputTensor = Tensor[Tuple1[L], V](jxpr)
@@ -1315,7 +1315,9 @@ object TensorOps:
   // -----------------------------------------------------------
   // Common specialized operation names
   // -----------------------------------------------------------
+
   object Tensor0Ops:
+
     extension [V: Reader](scalar: Tensor0[V])
 
       def item: V =
@@ -1356,6 +1358,16 @@ object TensorOps:
     extension [L, V](t: Tensor1[L, V])
 
       def relabelTo[NewL: Label](newAxis: Axis[NewL]): Tensor1[NewL, V] = Tensor[Tuple1[NewL], V](t.jaxValue)
+
+      // TODO generalize to TensorN (like slice)
+      def dynamicSlice(
+          dynamicStart: Tensor0[Int],
+          staticSize: Int
+      )(using
+          label: Label[L]
+      ): Tensor1[L, V] =
+        // TODO understand why toPythonCopy is needed and toPythonProxy fails!
+        Tensor(Jax.lax.dynamic_slice(t.jaxValue, Seq(dynamicStart.jaxValue).toPythonCopy, Seq(staticSize).toPythonCopy))
 
   object Tensor2Ops:
 

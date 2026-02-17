@@ -1,6 +1,12 @@
 package dimwit.tensor
 
-case class AxisExtent[T](axis: Axis[T], size: Int)
+import dimwit.|*|
+
+import scala.compiletime.{constValue, erasedValue, summonInline}
+
+case class AxisExtent[T](axis: Axis[T], size: Int):
+  def *[T2](other: AxisExtent[T2]): AxisExtent[T |*| T2] =
+    AxisExtent(Axis[T |*| T2], size * other.size)
 
 // Axis selectors for indexing operations
 sealed trait AxisSelector[L]:
