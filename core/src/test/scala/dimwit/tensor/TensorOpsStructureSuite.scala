@@ -361,3 +361,42 @@ class TensorOpsStructureSuite extends AnyFunSpec with Matchers:
       partB.axes shouldBe List("A", "B")
       partC.axes shouldBe List("A", "C")
       concatenate(partB, partC) shouldEqual t
+
+  describe("set function"):
+
+    describe("AxisAtIndex"):
+
+      it("set single value (scalar index)"):
+        var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+        t = t.set((Axis[A].at(0), Axis[B].at(0)))(5f)
+        t should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(5.0f, 2.0f), Array(3.0f, 4.0f))))
+
+      it("set single value (tensor index)"):
+        var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+        t = t.set((Axis[A].at(Tensor0(1)), Axis[B].at(Tensor0(1))))(5f)
+        t should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 5.0f))))
+
+      it("set a sub-vector"):
+        var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+        t = t.set(Axis[A].at(0))(Tensor1(Axis[B]).fromArray(Array(5.0f, 6.0f)))
+        t should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(5.0f, 6.0f), Array(3.0f, 4.0f))))
+
+      it("auto-broadcasting not supported"):
+        var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+        "t = t.set(Axis[A].at(0))(Tensor0(3.0f))" shouldNot compile
+
+    describe("AxisAtRange"):
+
+      it("set at a range"):
+        var t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
+        val t2 = t.set(Axis[A].at(0 to 1))(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f)))
+        t2 should approxEqual(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f, 3.0f)))
+        val t3 = t.set(Axis[A].at(1 to 2))(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f)))
+        t3 should approxEqual(Tensor1(Axis[A]).fromArray(Array(1.0f, 7.0f, 8.0f)))
+
+    describe("AxisAtIndices"):
+
+      it("set at a seq"):
+        var t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
+        val t2 = t.set(Axis[A].at(List(0, 2)))(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f)))
+        t2 should approxEqual(Tensor1(Axis[A]).fromArray(Array(7.0f, 2.0f, 8.0f)))
