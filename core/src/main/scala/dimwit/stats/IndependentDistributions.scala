@@ -70,7 +70,7 @@ object Uniform:
 class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Boolean]:
 
   def elementWiseLogProb(x: Tensor[T, Boolean]): Tensor[T, LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.bernoulli.logpmf(x.asInt.jaxValue, p = probs.jaxValue))
+    Tensor.fromPy(VType[LogProb])(jstats.bernoulli.logpmf(x.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor[T, Boolean] =
     Tensor.fromPy(VType[Boolean])(Jax.jrandom.bernoulli(key.jaxKey, p = probs.jaxValue))
