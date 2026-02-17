@@ -3,6 +3,10 @@ package dimwit.jax
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.py.PyQuote
+import dimwit.sharding.Device
+import dimwit.tensor.DeviceBackend
+import dimwit.sharding.Sharding
+import java.sql.ShardingKey
 
 object Jax:
 
@@ -15,26 +19,19 @@ object Jax:
   export py.Any
   export py.Dynamic
 
-  // Lazy initialization to avoid errors if JAX is not installed
   lazy val sys = py.module("sys")
 
   def clearCaches(): Unit =
-    // Using ScalaPy to call Python JAX
-    py.module("jax").clear_caches()
+    jax.clear_caches()
 
-  def devices(deviceType: String): Seq[py.Dynamic] =
-    val jaxModule = py.module("jax")
-    try
-      val devices = jaxModule.devices(deviceType)
-      devices.as[Seq[py.Dynamic]]
-    catch case e: me.shadaj.scalapy.py.PythonException => Seq.empty
+  def devices: Seq[Device] = jax.devices().as[Seq[py.Dynamic]].map(Device(_))
 
-  def device_put(x: py.Dynamic, device: PyDynamic): PyDynamic =
-    val jaxModule = py.module("jax")
-    jaxModule.device_put(x, device = device).as[PyDynamic]
+  def devices(deviceBackend: DeviceBackend): Seq[Device] =
+    jax.devices(deviceBackend.toJaxDeviceBackend)
+      .as[Seq[py.Dynamic]]
+      .map(Device(_))
 
-  def device_get(x: py.Dynamic): PyDynamic =
-    x.device.as[PyDynamic]
+  def device_put(x: py.Dynamic, device: PyDynamic): PyDynamic = jax.device_put(x, device = device).as[PyDynamic]
 
   def gc(): Unit =
     py.module("gc").collect()

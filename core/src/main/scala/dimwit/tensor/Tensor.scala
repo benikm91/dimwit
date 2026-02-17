@@ -15,19 +15,18 @@ import scala.reflect.ClassTag
 import scala.annotation.unchecked.uncheckedVariance
 import dimwit.Prime
 import ShapeTypeHelpers.AxisIndex
+import dimwit.sharding.Device
+import dimwit.sharding.Sharding
+import me.shadaj.scalapy.readwrite.Writer.stringWriter.given
 
-enum Device(val platform: String):
-  case CPU extends Device("cpu")
-  case GPU extends Device("gpu")
-  case Other extends Device("other")
+enum DeviceBackend(private[dimwit] val jaxName: String):
 
-object Device:
-  val default: Device = Device.CPU
-  extension (device: Device)
-    def toJaxDevice: Jax.PyDynamic =
-      val devices = Jax.devices(device.platform)
-      require(devices.nonEmpty, s"No JAX devices found for platform: ${device.platform}")
-      devices.head
+  def toJaxDeviceBackend: py.Dynamic =
+    py.Dynamic.global.str(jaxName)
+
+  case GPU extends DeviceBackend("gpu")
+  case TPU extends DeviceBackend("tpu")
+  case CPU extends DeviceBackend("cpu")
 
 class Tensor[T <: Tuple: Labels, V] private[tensor] (
     val jaxValue: Jax.PyDynamic
@@ -38,16 +37,15 @@ class Tensor[T <: Tuple: Labels, V] private[tensor] (
   lazy val shape: Shape[T] = Shape.fromSeq[T](jaxValue.shape.as[Seq[Int]])
   lazy val vtype: VType[V] = VType(this)
 
-  lazy val device: Device =
-    val jaxDevice = Jax.device_get(jaxValue)
-    jaxDevice.platform.as[String] match
-      case "cpu" => Device.CPU
-      case "gpu" => Device.GPU
-      case _     => Device.Other
+  // TODO this must be better typed, however not trivial as .device can be a NamedSharding
+  lazy val device: py.Dynamic =
+    jaxValue.device
 
   def asType[V2](vtype: VType[V2]): Tensor[T, V2] = new Tensor(Jax.jnp.astype(jaxValue, JaxDType.jaxDtype(vtype.dtype)))
 
   def toDevice(newDevice: Device): Tensor[T, V] = new Tensor(jaxValue = Jax.device_put(jaxValue, newDevice.toJaxDevice))
+  def toDeviceBackend(backend: DeviceBackend): Tensor[T, V] =
+    new Tensor(jaxValue = Jax.device_put(jaxValue, py.Dynamic.global.str(backend.toJaxDeviceBackend)))
 
   override def equals(other: Any): Boolean =
     other match
