@@ -16,6 +16,7 @@ import dimwit.random.Random.Key
 import examples.dataset.MNISTLoader
 
 import MNISTLoader.{Sample, TrainSample, TestSample, Height, Width}
+import dimwit.python.PyBridge.toPyTensor
 trait Hidden derives Label
 trait Output derives Label
 
@@ -216,5 +217,5 @@ object AutoencoderExample:
     )
     import me.shadaj.scalapy.py
     val plt = py.module("matplotlib.pyplot")
-    plt.imshow(img2d.jaxValue, cmap = "gray")
+    plt.imshow(toPyTensor(img2d), cmap = "gray")
     plt.show()

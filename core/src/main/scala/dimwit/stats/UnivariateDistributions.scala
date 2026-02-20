@@ -2,6 +2,7 @@ package dimwit.stats
 
 import dimwit.*
 import dimwit.jax.Jax
+import dimwit.python.PyBridge.liftPyTensor
 
 /** Distribution over a single random variable.
   * Note that most distributions are
@@ -16,10 +17,10 @@ class Categorical[L: Label](val probs: Tensor1[L, Prob]) extends UnivariateDistr
   private val logProbs: Tensor1[L, LogProb] = probs.log
 
   override def logProb(x: Tensor0[Int]): Tensor0[LogProb] =
-    Tensor.fromPy(VType[LogProb])(logProbs.jaxValue.__getitem__(x.jaxValue))
+    liftPyTensor(logProbs.jaxValue.__getitem__(x.jaxValue))
 
   override def sample(key: Random.Key): Tensor0[Int] =
-    Tensor.fromPy(VType[Int])(Jax.jrandom.categorical(key.jaxKey, logProbs.jaxValue))
+    liftPyTensor(Jax.jrandom.categorical(key.jaxKey, logProbs.jaxValue))
 
 object Categorical:
   def apply[L: Label](probs: Tensor1[L, Prob]): Categorical[L] = new Categorical(probs)

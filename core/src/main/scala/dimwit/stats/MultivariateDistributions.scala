@@ -5,6 +5,7 @@ import dimwit.random.Random
 import dimwit.jax.Jax
 import dimwit.jax.Jax.scipy_stats as jstats
 import dimwit.jax.Jax.PyDynamic
+import dimwit.python.PyBridge.liftPyTensor
 
 /** Distribution over a vector of random variables.
   */
@@ -16,10 +17,10 @@ class MVNormal[L: Label](
 ) extends MultivariateDistribution[L, Float]:
 
   override def logProb(x: Tensor1[L, Float]): Tensor0[LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.multivariate_normal.logpdf(x.jaxValue, mean = mean.jaxValue, cov = covariance.jaxValue))
+    liftPyTensor(jstats.multivariate_normal.logpdf(x.jaxValue, mean = mean.jaxValue, cov = covariance.jaxValue))
 
   override def sample(k: Random.Key): Tensor1[L, Float] =
-    Tensor.fromPy(VType[Float])(
+    liftPyTensor(
       Jax.jrandom.multivariate_normal(
         k.jaxKey,
         mean = mean.jaxValue,
@@ -32,10 +33,10 @@ class Dirichlet[L: Label](
 ) extends MultivariateDistribution[L, Float]:
 
   override def logProb(x: Tensor1[L, Float]): Tensor0[LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.dirichlet.logpdf(x.jaxValue, alpha = concentration.jaxValue))
+    liftPyTensor(jstats.dirichlet.logpdf(x.jaxValue, alpha = concentration.jaxValue))
 
   override def sample(k: Random.Key): Tensor1[L, Float] =
-    Tensor.fromPy(VType[Float])(
+    liftPyTensor(
       Jax.jrandom.dirichlet(
         k.jaxKey,
         alpha = concentration.jaxValue
@@ -50,12 +51,12 @@ class Multinomial[L: Label](
   private val categorical: Categorical[L] = Categorical(probs)
 
   override def logProb(x: Tensor1[L, Int]): Tensor0[LogProb] =
-    Tensor.fromPy(VType[LogProb])(jstats.multinomial.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
+    liftPyTensor(jstats.multinomial.logpmf(x.jaxValue, n = n.jaxValue, p = probs.jaxValue))
 
   override def sample(key: Random.Key): Tensor1[L, Int] =
     // Sample from categorical n times using splitvmap, then bincount
     trait Draws derives Label
     val draws = key.splitvmap(Axis[Draws] -> n.item)(k => categorical.sample(k))
-    Tensor.fromPy(VType[Int])(
+    liftPyTensor(
       Jax.jnp.bincount(draws.jaxValue, length = probs.shape.dimensions(0))
     )

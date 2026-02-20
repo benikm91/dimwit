@@ -2,17 +2,19 @@ package nn
 
 import dimwit.*
 import dimwit.jax.Jax
+import dimwit.python.PyBridge.{liftPyTensor, toPyTensor}
 
 object ActivationFunctions:
 
   def sigmoid[T <: Tuple: Labels, V: IsFloating](t: Tensor[T, V]): Tensor[T, V] =
-    Tensor(Jax.jnn.sigmoid(t.jaxValue))
+    val x = Jax.jnn.sigmoid
+    liftPyTensor(Jax.jnn.sigmoid(toPyTensor(t)))
 
   def relu[T <: Tuple: Labels, V: IsFloating](t: Tensor[T, V]): Tensor[T, V] =
-    Tensor(Jax.jnn.relu(t.jaxValue))
+    liftPyTensor(Jax.jnn.relu(toPyTensor(t)))
 
   def gelu[T <: Tuple: Labels, V: IsFloating](t: Tensor[T, V]): Tensor[T, V] =
-    Tensor(Jax.jnn.gelu(t.jaxValue))
+    liftPyTensor(Jax.jnn.gelu(toPyTensor(t)))
 
   def softmax[L: Label, V: IsFloating](t: Tensor1[L, V]): Tensor1[L, V] =
-    Tensor(Jax.jnn.softmax(t.jaxValue, axis = 0))
+    liftPyTensor(Jax.jnn.softmax(toPyTensor(t), axis = 0))

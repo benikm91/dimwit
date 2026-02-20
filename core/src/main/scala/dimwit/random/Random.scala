@@ -4,6 +4,7 @@ import dimwit.tensor.*
 import dimwit.tensor.TensorOps.*
 import dimwit.jax.{Jax, JaxDType}
 import me.shadaj.scalapy.py.SeqConverters
+import dimwit.python.PyBridge.liftPyTensor
 
 /** JAX-based random number generation with proper key management.
   *
@@ -71,7 +72,7 @@ object Random:
     *   A 1D tensor containing a random permutation of [0, 1, ..., n-1]
     */
   def permutation[L: Label](dim: AxisExtent[L])(key: Key): Tensor1[L, Int] =
-    Tensor.fromPy(VType[Int])(Jax.jrandom.permutation(key.jaxKey, dim.size))
+    liftPyTensor(Jax.jrandom.permutation(key.jaxKey, dim.size))
 
   object Key:
     /** Create a random key from an integer seed */

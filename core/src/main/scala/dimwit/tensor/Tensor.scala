@@ -29,8 +29,8 @@ object Device:
       require(devices.nonEmpty, s"No JAX devices found for platform: ${device.platform}")
       devices.head
 
-class Tensor[T <: Tuple: Labels, V] private[tensor] (
-    val jaxValue: Jax.PyDynamic
+class Tensor[T <: Tuple: Labels, V] private[dimwit] (
+    private[dimwit] val jaxValue: Jax.PyDynamic
 ):
 
   lazy val axes: List[String] = shape.labels
@@ -93,11 +93,9 @@ object Tensor:
       given ExecutionType[A] = ExecutionTypeFor[A](other.dtype) // fix the underlying dtype to match the other tensor's dtype
       summon[ArrayWriter[A]].fromArray[T](other.shape)(values)
 
+  private[dimwit] def apply[T <: Tuple: Labels, V](jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
   def apply[T <: Tuple: Labels](shape: Shape[T]): Tensor.Factory[T] = Tensor.Factory(shape)
-  def apply[T <: Tuple: Labels, V](jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
   def like[T <: Tuple: Labels, V](template: Tensor[T, V]): Tensor.LikeFactory[T, V] = Tensor.LikeFactory(template)
-
-  def fromPy[T <: Tuple: Labels, V](vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
 
 type Tensor0[V] = Tensor[EmptyTuple, V]
 type Tensor1[L, V] = Tensor[Tuple1[L], V]

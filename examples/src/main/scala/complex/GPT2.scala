@@ -2,6 +2,7 @@ package examples.complex
 
 import dimwit.*
 import dimwit.Conversions.given
+import dimwit.python.PyBridge.liftPyTensor
 
 import nn.ActivationFunctions.*
 
@@ -350,12 +351,12 @@ object GPT2Inference:
     def load1[L](name: String, axis: Axis[L])(using Label[L]): Tensor1[L, Float] =
       val info = tensorMap(name)
       val jaxArray = SafeTensorsReader.loadTensor(filePath, info, dataStartPos)
-      Tensor(jaxArray)
+      liftPyTensor(jaxArray)
 
     def load2[L1, L2](name: String, axis1: Axis[L1], axis2: Axis[L2])(using Label[L1], Label[L2]): Tensor2[L1, L2, Float] =
       val info = tensorMap(name)
       val jaxArray = SafeTensorsReader.loadTensor(filePath, info, dataStartPos)
-      Tensor(jaxArray)
+      liftPyTensor(jaxArray)
 
     def loadLinear[In, Out](prefix: String, inAxis: Axis[In], outAxis: Axis[Out])(using Label[In], Label[Out]): LinearLayerParams[In, Out] =
       val w = load2(s"$prefix.weight", inAxis, outAxis)
