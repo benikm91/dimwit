@@ -1,6 +1,7 @@
 package nn
 
 import dimwit.*
+import dimwit.Conversions.given
 import dimwit.autodiff.FloatTree.ops.*
 import dimwit.autodiff.FloatTree.*
 import dimwit.autodiff.*
@@ -77,18 +78,19 @@ case class AdamState[P](
     momentums: P, // momentums
     velocities: P, // velocities
     b1: Tensor0[Float32], // decay rate for momentums mᵗ
-    b2: Tensor0[Float32] // decay rate for velocities vᵗ
+    b2: Tensor0[Float32], // decay rate for velocities vᵗ
+    iteration: Tensor0[Int32]
 )
 
 /** Implements the Adam optimization algorithm.
   *
   * @see [[https://arxiv.org/abs/1412.6980 Adam: A Method for Stochastic Optimization]]
   */
-case class Adam(
-    learningRate: Tensor0[Float32], // step size (learning rate)
-    b1: Tensor0[Float32] = Tensor0(0.9f), // decay rate for momentums mᵗ
-    b2: Tensor0[Float32] = Tensor0(0.999f), // decay rate for velocities vᵗ
-    epsilon: Tensor0[Float32] = Tensor0(1e-8f) // small constant to prevent division by zero
+case class Adam private (
+    learningRateF: Tensor0[Int32] => Tensor0[Float32], // step size (learning rate)
+    b1: Tensor0[Float32], // decay rate for momentums mᵗ
+    b2: Tensor0[Float32], // decay rate for velocities vᵗ
+    epsilon: Tensor0[Float32] // small constant to prevent division by zero
 ) extends GradientOptimizer:
 
   private val β1 = b1
@@ -98,7 +100,7 @@ case class Adam(
 
   def init[Params: TensorTree: FloatTreeFor[Float32]](params: Params): State[Params] =
     def zeros = params.fillCopy(0f)
-    AdamState(zeros, zeros, b1 = Tensor0(1f), b2 = Tensor0(1f))
+    AdamState(zeros, zeros, b1 = Tensor0(1f), b2 = Tensor0(1f), iteration = Tensor0(0))
 
   def update[Params: TensorTree: FloatTreeFor[Float32]](
       gradients: Grad[Params],
@@ -112,7 +114,7 @@ case class Adam(
     val `β2ₜ₋₁` = state.b2
 
     // rename parameters for internal clarity
-    val α = learningRate
+    val α = learningRateF(state.iteration)
     val ε = epsilon
     val `θₜ₋₁` = params
 
@@ -128,7 +130,23 @@ case class Adam(
     val v̂ = vᵗ `//!` (1f - `β2ₜ`)
     val θₜ = `θₜ₋₁` -- (α **! m̂) `//` (v̂.sqrt ++! ε)
 
-    (θₜ, AdamState(mᵗ, vᵗ, β1ₜ, β2ₜ))
+    (θₜ, AdamState(mᵗ, vᵗ, β1ₜ, β2ₜ, state.iteration + 1))
+
+object Adam:
+
+  def apply(
+      learningRate: Tensor0[Float32],
+      b1: Tensor0[Float32] = Tensor0(0.9f),
+      b2: Tensor0[Float32] = Tensor0(0.999f),
+      epsilon: Tensor0[Float32] = Tensor0(1e-8f)
+  ): Adam = Adam(_ => learningRate, b1, b2, epsilon)
+
+  def withSchedule(
+      learningRateF: Tensor0[Int32] => Tensor0[Float32],
+      b1: Tensor0[Float32] = Tensor0(0.9f),
+      b2: Tensor0[Float32] = Tensor0(0.999f),
+      epsilon: Tensor0[Float32] = Tensor0(1e-8f)
+  ): Adam = Adam(learningRateF, b1, b2, epsilon)
 
 /** Implements the AdamW algorithm (Adam with decoupled weight decay).
   *
@@ -154,10 +172,50 @@ case class AdamW(
       params: Params,
       state: State[Params]
   ): (Params, State[Params]) =
-    val α = adam.learningRate
+    val α = adam.learningRateF(state.iteration)
     val `θₜ₋₁` = params
     val `λ'` = weightDecayFactor
     val λ = `λ'` * α // Tie weight decay to learning rate
     val decayedParams = `θₜ₋₁` -- λ **! `θₜ₋₁`
     val (θₜ, adamState) = adam.update(gradients, decayedParams, state)
     (θₜ, adamState)
+
+object LearningRateSchedules:
+
+  /** A schedule maps the current iteration tensor to a learning rate tensor */
+  type Schedule = Tensor0[Int32] => Tensor0[Float32]
+
+  extension (s: Schedule)
+    /** Mathematical intersection: seamlessly hands off when one curve crosses the other */
+    infix def min(other: Schedule): Schedule = t => minimum(s(t), other(t))
+
+    /** Shifts a schedule forward in time.
+      * For all t < steps, the schedule sees t = 0 (locking it at its initial value).
+      */
+    def delay(steps: Int): Schedule = t =>
+      val shiftedT = maximum(t - Tensor0(steps), 0)
+      s(shiftedT)
+
+  /** Rises linearly from near 0 up to maxLr over `warmupSteps`, then locks at maxLr.
+    */
+  def linearWarmup(
+      maxLr: Float,
+      warmupSteps: Int
+  ): Schedule = t =>
+    val warmupRatio = minimum((t.asFloat32 + 1f) / (warmupSteps + 1f), 1f)
+    maxLr * warmupRatio
+
+  /** Starts at maxLr and cosine decays down to minLr over `decaySteps`, then locks at minLr.
+    * (Has no concept of warmup; assumes it starts decaying at t=0).
+    */
+  def cosineDecay(
+      maxLr: Float,
+      minLr: Float,
+      decaySteps: Int
+  ): Schedule =
+    require(decaySteps > 0, "decaySteps must be strictly positive to avoid division by zero")
+    t =>
+      val piT = Tensor0(math.Pi.toFloat)
+      val decayRatio = minimum(t.asFloat32 / decaySteps, 1f)
+      val coeff = Tensor0(0.5f) * (Tensor0(1.0f) + (piT * decayRatio).cos)
+      minLr + coeff * (maxLr - minLr)
