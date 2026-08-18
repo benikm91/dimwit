@@ -29,6 +29,28 @@ class TensorOpsFunctionalSuite extends DimwitTest:
       y1 shouldEqual (t +! 5f)
       y2 shouldEqual (t -! 5f)
 
+    it("vmap return named tuple"):
+      val t = Tensor(Shape(Axis[A] -> 2, Axis[B] -> 3)).fill(0f)
+      val res = t.vmap(Axis[A]): x =>
+        (first = x +! 5f, second = x -! 5f)
+      res.first shouldEqual (t +! 5f)
+      res.second shouldEqual (t -! 5f)
+
+    it("vmap return nested named and plain tuples"):
+      val t = Tensor(Shape(Axis[A] -> 2, Axis[B] -> 3)).fill(0f)
+      val res = t.vmap(Axis[A]): x =>
+        (nested = (x +! 5f, (inner = x -! 5f)), plain = x)
+      res.nested._1 shouldEqual (t +! 5f)
+      res.nested._2.inner shouldEqual (t -! 5f)
+      res.plain shouldEqual t
+
+    it("vmap return named tuple inside a plain tuple"):
+      val t = Tensor(Shape(Axis[A] -> 2, Axis[B] -> 3)).fill(0f)
+      val (y1, named) = t.vmap(Axis[A]): x =>
+        (x +! 5f, (inner = x -! 5f))
+      y1 shouldEqual (t +! 5f)
+      named.inner shouldEqual (t -! 5f)
+
     it("vmap over Axis B (columns)"):
       val res = t2.vmap(Axis[B])(_.sum)
       res shouldEqual Tensor1(Axis[B]).fromArray(Array(4.0f, 6.0f))
