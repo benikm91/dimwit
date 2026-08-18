@@ -29,9 +29,9 @@ JAX and einops, and efficient implementations of tensor operations using JAX as 
 ```scala
 import dimwit.*
 
-// Labels are simply Scala types
-trait Batch derives Label
-trait Feature derives Label
+// Labels are simply Scala types, declared sealed so that the compiler can tell them apart
+sealed trait Batch derives Label
+sealed trait Feature derives Label
 
 // Create a 2D tensor with shape (3, 2), labeled with Batch and Feature
 val t = Tensor(

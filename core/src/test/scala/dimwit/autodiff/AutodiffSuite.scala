@@ -229,6 +229,30 @@ class AutodiffSuite extends DimwitTest:
       hess.w.b should approxEqual(Tensor.like(hess.w.b).fill(0f))
       hess.b.b should approxEqual(Tensor2.eye(params.b.extent(Axis[B])) *! 2.0f)
 
+    it("differentiates a case class tree into a tensor over a different axis"):
+      def f(p: JacParams): Tensor1[C, Float32] = p.w.relabel(Axis[A] -> Axis[C]) *! p.b.sum
+      val jac = Autodiff.jacobian(f)(params)
+
+      jac.w.axes shouldBe List("C", "A")
+      jac.b.axes shouldBe List("C", "B")
+
+    it("takes the jacobian of a jacobian over a case class tree"):
+      def f(p: JacParams): Tensor0[Float32] = p.w.sum * p.b.sum
+      val hess = Autodiff.jacobian(Autodiff.jacobian(f))(params)
+
+      hess.w.w should approxEqual(Tensor.like(hess.w.w).fill(0f))
+      hess.w.b should approxEqual(Tensor.like(hess.w.b).fill(1f))
+      hess.b.w should approxEqual(Tensor.like(hess.b.w).fill(1f))
+      hess.b.b should approxEqual(Tensor.like(hess.b.b).fill(0f))
+
+    it("differentiates a function taking a named tuple"):
+      def f(p: (w: Tensor1[A, Float32], b: Tensor1[B, Float32])): Tensor0[Float32] = p.w.sum * p.b.sum
+      val jf = Autodiff.jacobian(f)
+      val jac = jf((w = params.w, b = params.b))
+
+      jac.w should approxEqual(Tensor.like(jac.w).fill(params.b.sum.item))
+      jac.b should approxEqual(Tensor.like(jac.b).fill(params.w.sum.item))
+
     it("differentiates a function returning a named tuple"):
       def f(x: Tensor1[A, Float32]): (u: Tensor1[A, Float32], v: Tensor1[A, Float32]) =
         (u = x *! 2.0f, v = x *! 3.0f)

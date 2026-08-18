@@ -6,7 +6,7 @@ import Tuple.:*
 
 @scala.annotation.implicitNotFound("""
 An axis label ${T} was given or inferred, which does not have a Label instance.
-Ensure that all axis types ${T} are defined with 'derives Label' (e.g. 'trait T derives Label')
+Ensure that all axis types ${T} are defined with 'derives Label' (e.g. 'sealed trait T derives Label')
 """)
 trait Label[T]:
   def name: String
@@ -16,8 +16,19 @@ object Label:
 
   private def derivedMacro[T: Type](using Quotes): Expr[Label[T]] =
     import quotes.reflect.*
-    val tpe = TypeRepr.of[T]
-    val simpleName = tpe.typeSymbol.name
+    val symbol = TypeRepr.of[T].typeSymbol
+    val simpleName = symbol.name
+    if !symbol.flags.is(Flags.Sealed) && !symbol.flags.is(Flags.Final) && !symbol.flags.is(Flags.Module) then
+      report.errorAndAbort(
+        s"""Axis label $simpleName must be sealed:
+           |
+           |    sealed trait $simpleName derives Label
+           |
+           |Axis labels are phantom types: names that exist only while compiling, and never hold a value.
+           |Their whole purpose is to be distinct from one another, so the compiler has to be able to tell
+           |any two of them apart. An open trait gives it no such guarantee, as some later type could still
+           |extend both $simpleName and another label at once. Sealing the trait rules that out.""".stripMargin
+      )
     '{
       new Label[T]:
         def name: String = ${ Expr(simpleName) }

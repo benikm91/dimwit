@@ -3,9 +3,10 @@ package dimwit.tensor.tensorops
 import dimwit.jax.Jax
 import dimwit.tensor.Axis
 import dimwit.tensor.Labels
-import dimwit.tensor.ShapeTypeHelpers.AxisRemover
+import dimwit.tensor.ShapeTypeHelpers.AxisIndex
 import dimwit.tensor.Tensor
 import dimwit.tensor.TupleHelpers.PrimeConcat
+import dimwit.tensor.TupleHelpers.Remove
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer
@@ -23,9 +24,8 @@ object ContractionOps:
       * Automatically primes the labels of the resulting tensor to avoid label collisions.
       */
     def outerProduct[OtherShape <: Tuple: Labels](other: Tensor[OtherShape, V])(using
-        primeConcat: PrimeConcat[T, OtherShape],
-        labels: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] = Tensor(
+        labels: Labels[PrimeConcat[T, OtherShape]]
+    ): Tensor[PrimeConcat[T, OtherShape], V] = Tensor(
       Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = 0) // generalized outer product
     )
 
@@ -39,12 +39,11 @@ object ContractionOps:
         ContractAxis,
         OtherShape <: Tuple
     ](axis: Axis[ContractAxis])(other: Tensor[OtherShape, V])(using
-        ev: AxisRemover[T, ContractAxis],
-        evOther: AxisRemover[OtherShape, ContractAxis]
+        ev: AxisIndex[T, ContractAxis],
+        evOther: AxisIndex[OtherShape, ContractAxis]
     )(using
-        primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
-        labelsOut: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] =
+        labelsOut: Labels[PrimeConcat[Remove[T, ContractAxis], Remove[OtherShape, ContractAxis]]]
+    ): Tensor[PrimeConcat[Remove[T, ContractAxis], Remove[OtherShape, ContractAxis]], V] =
       val axesTuple1 = Jax.Dynamic.global.tuple(Seq(ev.index).toPythonProxy)
       val axesTuple2 = Jax.Dynamic.global.tuple(Seq(evOther.index).toPythonProxy)
       val axesPair = Jax.Dynamic.global.tuple(Seq(axesTuple1, axesTuple2).toPythonProxy)
@@ -70,12 +69,11 @@ object ContractionOps:
         ContractAxisB,
         OtherShape <: Tuple
     ](axisPair: (Axis[ContractAxisA], Axis[ContractAxisB]))(other: Tensor[OtherShape, V])(using
-        ev: AxisRemover[T, ContractAxisA],
-        evOther: AxisRemover[OtherShape, ContractAxisB]
+        ev: AxisIndex[T, ContractAxisA],
+        evOther: AxisIndex[OtherShape, ContractAxisB]
     )(using
-        primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
-        outLabels: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] =
+        outLabels: Labels[PrimeConcat[Remove[T, ContractAxisA], Remove[OtherShape, ContractAxisB]]]
+    ): Tensor[PrimeConcat[Remove[T, ContractAxisA], Remove[OtherShape, ContractAxisB]], V] =
       val axesTuple1 = Jax.Dynamic.global.tuple(Seq(ev.index).toPythonProxy)
       val axesTuple2 = Jax.Dynamic.global.tuple(Seq(evOther.index).toPythonProxy)
       val axesPair = Jax.Dynamic.global.tuple(Seq(axesTuple1, axesTuple2).toPythonProxy)

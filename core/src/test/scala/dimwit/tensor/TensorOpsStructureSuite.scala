@@ -271,7 +271,7 @@ class TensorOpsStructureSuite extends DimwitTest:
   describe("Relabeling"):
 
     it("relabel an axis"):
-      trait X derives Label
+      sealed trait X derives Label
       t3.relabel(Axis[A].as(Axis[X])).axes shouldBe List("X", "B", "C")
       t3.relabel(Axis[B].as(Axis[X])).axes shouldBe List("A", "X", "C")
       t3.relabel(Axis[C].as(Axis[X])).axes shouldBe List("A", "B", "X")
@@ -588,7 +588,7 @@ class TensorOpsStructureSuite extends DimwitTest:
       )
 
       // Stacking along new axis C, strictly after A. Expected axes: A, C, B
-      val stacked = stack(Seq(t1, t2), newAxis = Axis[C], afterAxis = Axis[A])
+      val stacked = stackAfter(Seq(t1, t2), newAxis = Axis[C], afterAxis = Axis[A])
 
       stacked.axes shouldBe List("A", "C", "B")
       stacked.shape(Axis[A]) shouldBe 2
@@ -613,7 +613,7 @@ class TensorOpsStructureSuite extends DimwitTest:
       val t1 = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
       val t2 = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(5.0f, 6.0f), Array(7.0f, 8.0f)))
 
-      val stacked: Tensor[(A, B, C), Float32] = stack(Seq(t1, t2), newAxis = Axis[C], afterAxis = Axis[B])
+      val stacked: Tensor[(A, B, C), Float32] = stackAfter(Seq(t1, t2), newAxis = Axis[C], afterAxis = Axis[B])
 
       stacked.axes shouldBe List("A", "B", "C")
       stacked should approxEqual(Tensor3(Axis[A], Axis[B], Axis[C]).fromArray(
@@ -624,7 +624,7 @@ class TensorOpsStructureSuite extends DimwitTest:
       ))
 
     it("stacks after the middle axis of a 3D tensor"):
-      val stacked: Tensor[(A, B, D, C), Float32] = stack(Seq(t3, t3), newAxis = Axis[D], afterAxis = Axis[B])
+      val stacked: Tensor[(A, B, D, C), Float32] = stackAfter(Seq(t3, t3), newAxis = Axis[D], afterAxis = Axis[B])
 
       stacked.axes shouldBe List("A", "B", "D", "C")
       stacked.shape(Axis[D]) shouldBe 2

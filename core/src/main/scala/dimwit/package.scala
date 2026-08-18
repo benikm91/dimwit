@@ -15,7 +15,13 @@ package object dimwit:
   object StringLabelMath:
     infix type *[A <: String, B <: String] = A + "*" + B
 
-  trait Prime[T]
+  /** Marks the "input" copy of an axis label, so that an axis can appear twice in one shape
+    * (a jacobian, for instance) and still be told apart.
+    *
+    * It is a final class rather than a trait so that match types can rule it out structurally
+    * against a plain label, just as they can for [[dimwit.tensor.Axis]].
+    */
+  final class Prime[T]
   object Prime:
     given [L](using label: Label[L]): Label[Prime[L]] with
       val name: String = s"${label.name}'"
@@ -42,7 +48,7 @@ package object dimwit:
     * Mentally think of this as the "product" of two dimensions.
     */
   @targetName("Combined")
-  infix trait |*|[A, B]
+  sealed infix trait |*|[A, B]
   object `|*|`:
     given [A, B](using labelA: Label[A], labelB: Label[B]): Label[A |*| B] with
       val name: String = s"${labelA.name}*${labelB.name}"
@@ -52,7 +58,7 @@ package object dimwit:
     * Mentally think of this as the "sum" of two dimensions.
     */
   @targetName("Concatenated")
-  infix trait |+|[A, B]
+  sealed infix trait |+|[A, B]
   object `|+|`:
     given [A, B](using labelA: Label[A], labelB: Label[B]): Label[A |+| B] with
       val name: String = s"${labelA.name}+${labelB.name}"
@@ -75,7 +81,8 @@ package object dimwit:
     AxisAtIndices,
     AxisAtTensorIndex
   }
-  export dimwit.tensor.ShapeTypeHelpers.{AxisInTensor, AxisIndex, AxisRemover, AxisReplacer, AxisIndices, AxesRemover, AxesConditionalRemover, SharedAxisRemover}
+  export dimwit.tensor.ShapeTypeHelpers.{AxisInTensor, AxisIndex, AxesInTensor, AxisIndices, SharedAxisRemover, RemoveFromAll}
+  export dimwit.tensor.TupleHelpers.{Remove, RemoveAll, Replace, ReplaceBy, PrimeRest, PrimeConcat}
 
   // Export operations
   export dimwit.tensor.TensorOps.*

@@ -6,30 +6,60 @@ import dimwit.tensor.Axis
 import dimwit.tensor.Label
 import dimwit.tensor.Labels
 import dimwit.tensor.LabelsImpl
-import dimwit.tensor.ShapeTypeHelpers.AxisRemover
-import dimwit.tensor.ShapeTypeHelpers.AxisReplacer
+import dimwit.tensor.ShapeTypeHelpers.AxisIndex
+import dimwit.tensor.ShapeTypeHelpers.RemoveFromAll
 import dimwit.tensor.ShapeTypeHelpers.SharedAxisRemover
 import dimwit.tensor.Tensor
 import dimwit.tensor.Tensor0
+import dimwit.tensor.TupleHelpers.Remove
+import dimwit.tensor.TupleHelpers.Replace
 import dimwit.tensor.tensorops.FunctionalOps.ZipVmap.TensorsOf
+import dimwit.tensortree.TensorTree
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Reader
 import me.shadaj.scalapy.readwrite.Writer
-import dimwit.tensortree.TensorTree
-import dimwit.tensor.ShapeTypeHelpers.UnwrapAxes
-import dimwit.tensor.ShapeTypeHelpers.AxesRemover
+
+import scala.NamedTuple.NamedTuple
+import scala.annotation.implicitNotFound
 
 object FunctionalOps:
 
-  type PrependAxes[Axes <: Tuple, FOut] = Axes match
-    case EmptyTuple => FOut
-    case h *: t     => PrependAxis[h, PrependAxes[t, FOut]]
+  /** Prepends the axis `L` to every tensor of the tree `FOut`, giving the result type of a
+    * `vmap`/`zipvmap` whose body returned `FOut`.
+    *
+    * This is a type class rather than a match type because a named tuple is not provably distinct
+    * from a tensor - `NamedTuple` is opaque, so a match type gets stuck on the very first case.
+    */
+  @implicitNotFound(
+    "Cannot prepend Axis[${L}] to ${FOut}. A vmap/zipvmap body may return a Tensor, a tuple, a named tuple, or any nesting of those"
+  )
+  trait PrependAxis[L, FOut]:
+    type Out
 
-  type PrependAxis[L, FOut] = FOut match
-    case Tensor[shape, v] => Tensor[L *: shape, v]
-    case EmptyTuple       => EmptyTuple
-    case h *: t           => PrependAxis[L, h] *: PrependAxis[L, t]
+  object PrependAxis:
+
+    type Aux[L, FOut, Out0] = PrependAxis[L, FOut]:
+      type Out = Out0
+
+    private def instance[L, FOut, Out0]: Aux[L, FOut, Out0] =
+      new PrependAxis[L, FOut]:
+        type Out = Out0
+
+    /** A tensor leaf gets the axis prepended to its shape. */
+    given tensor[L, Shape <: Tuple, V]: Aux[L, Tensor[Shape, V], Tensor[L *: Shape, V]] = instance
+
+    given emptyTuple[L]: Aux[L, EmptyTuple, EmptyTuple] = instance
+
+    given tuple[L, H, HOut, T <: Tuple, TOut <: Tuple](using
+        head: Aux[L, H, HOut],
+        tail: Aux[L, T, TOut]
+    ): Aux[L, H *: T, HOut *: TOut] = instance
+
+    /** A named tuple keeps its names and maps its values. */
+    given namedTuple[L, N <: Tuple, V <: Tuple, VOut <: Tuple](using
+        values: Aux[L, V, VOut]
+    ): Aux[L, NamedTuple[N, V], NamedTuple[N, VOut]] = instance
 
   object ZipVmap:
 
@@ -70,18 +100,19 @@ object FunctionalOps:
     )(using
         ev: SharedAxisRemover[ShapesOf[Inputs], L]
     )(
-        f: TensorsOf[ev.RemainingAxes, ValuesOf[Inputs]] => FOut
+        f: TensorsOf[RemoveFromAll[ShapesOf[Inputs], L], ValuesOf[Inputs]] => FOut
     )(using
+        prependAxis: PrependAxis[L, FOut],
         toPyTree: TensorTree[FOut],
-        fromPyTree: TensorTree[PrependAxis[L, FOut]]
-    ): PrependAxis[L, FOut] =
+        fromPyTree: TensorTree[prependAxis.Out]
+    ): prependAxis.Out =
       val fpy = (args: py.Dynamic) =>
         OnError.traceStack:
           val tensorList = args.as[Seq[py.Dynamic]].zip(ev.shapesLabels).map: (jaxArr, labels) =>
             Tensor(jaxArr)(using LabelsImpl(labels))
 
           val inputTuple = Tuple.fromArray(tensorList.toArray)
-          val result = f(inputTuple.asInstanceOf[TensorsOf[ev.RemainingAxes, ValuesOf[Inputs]]])
+          val result = f(inputTuple.asInstanceOf[TensorsOf[RemoveFromAll[ShapesOf[Inputs], L], ValuesOf[Inputs]]])
           toPyTree.toPyTree(result)
 
       val jaxInputs = py.Dynamic.global.tuple(tensors.toArray.map(_.asInstanceOf[Tensor[?, ?]].jaxValue).toPythonProxy)
@@ -110,11 +141,12 @@ object FunctionalOps:
     )(using
         ev: SharedAxisRemover[(T, T2), L]
     )(
-        f: TensorsOf[ev.RemainingAxes, (V, V)] => FOut
+        f: TensorsOf[RemoveFromAll[(T, T2), L], (V, V)] => FOut
     )(using
+        prependAxis: PrependAxis[L, FOut],
         toPyTree: TensorTree[FOut],
-        fromPyTree: TensorTree[PrependAxis[L, FOut]]
-    ): PrependAxis[L, FOut] =
+        fromPyTree: TensorTree[prependAxis.Out]
+    ): prependAxis.Out =
       ZipVmap.zipvmap(axis)(t, other)(f)
 
     /** Vectorized mapping over a specified axis of the tensor.
@@ -126,17 +158,18 @@ object FunctionalOps:
     def vmap[VmapAxis: Label, FOut](
         axis: Axis[VmapAxis]
     )(using
-        ev: AxisRemover[T, VmapAxis]
+        ev: AxisIndex[T, VmapAxis]
     )(
-        f: Tensor[ev.RemainingAxes, V] => FOut
+        f: Tensor[Remove[T, VmapAxis], V] => FOut
     )(using
+        prependAxis: PrependAxis[VmapAxis, FOut],
         toPyTree: TensorTree[FOut],
-        fromPyTree: TensorTree[PrependAxis[VmapAxis, FOut]],
-        labels: Labels[ev.RemainingAxes]
-    ): PrependAxis[VmapAxis, FOut] =
+        fromPyTree: TensorTree[prependAxis.Out],
+        labels: Labels[Remove[T, VmapAxis]]
+    ): prependAxis.Out =
       val fpy = (jxpr: Jax.PyDynamic) =>
         OnError.traceStack:
-          val innerTensor = Tensor[ev.RemainingAxes, V](jxpr)
+          val innerTensor = Tensor[Remove[T, VmapAxis], V](jxpr)
           val result = f(innerTensor)
           toPyTree.toPyTree(result)
       fromPyTree.fromPyTree(Jax.jax_helper.vmap(fpy, ev.index)(t.jaxValue))
@@ -148,14 +181,14 @@ object FunctionalOps:
       *
       *  @return A new tensor resulting from applying `f` to each slice along the specified axis.
       */
-    def vapply[L: Label, NewL, R <: Tuple, NewV](
+    def vapply[L: Label, NewL, NewV](
         axis: Axis[L]
     )(
         f: Tensor[Tuple1[L], V] => Tensor[Tuple1[NewL], NewV]
     )(using
-        ev: AxisReplacer.Aux[T, L, NewL, R],
-        labels: Labels[R]
-    ): Tensor[R, NewV] =
+        ev: AxisIndex[T, L],
+        labels: Labels[Replace[T, L, NewL]]
+    ): Tensor[Replace[T, L, NewL], NewV] =
       val fpy = (jxpr: Jax.PyDynamic) =>
         OnError.traceStack:
           val inputTensor = Tensor[Tuple1[L], V](jxpr)
@@ -182,9 +215,9 @@ object FunctionalOps:
     )(
         f: Tensor[Tuple1[L], V] => Tensor0[V]
     )(using
-        ev: AxisRemover[T, L],
-        labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] =
+        ev: AxisIndex[T, L],
+        labels: Labels[Remove[T, L]]
+    ): Tensor[Remove[T, L], V] =
       val fpy = (jxpr: Jax.PyDynamic) =>
         OnError.traceStack:
           val inputTensor = Tensor[Tuple1[L], V](jxpr)

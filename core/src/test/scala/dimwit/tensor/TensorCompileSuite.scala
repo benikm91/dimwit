@@ -21,6 +21,12 @@ class TensorCompileSuite extends DimwitTest:
     val error = errors.head
     error.message should include("(dimwit.tensor.Axis[dimwit.A], dimwit.tensor.Axis[dimwit.C])]] not all found in Tensor shape [(dimwit.A, dimwit.B)]")
 
+  it("Nice error message when a label is not declared sealed"):
+    val errors = typeCheckErrors("trait OpenLabel derives Label")
+    errors should have size 1
+    val error = errors.head
+    error.message should include("Axis label OpenLabel must be sealed")
+
   it("Nice error message when axes not found in zipvmap"):
     val ab = Tensor(Shape(Axis[A] -> 1, Axis[B] -> 2)).fill(0f)
     val bc = Tensor(Shape(Axis[B] -> 2, Axis[C] -> 1)).fill(0f)
