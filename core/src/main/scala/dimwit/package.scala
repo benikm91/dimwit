@@ -62,6 +62,11 @@ package object dimwit:
   // Export the Prime axis marker and the type classes that manipulate it
   export dimwit.prime.{Prime, PrimeRemover, PrimeRest, PrimeConcat}
 
+  // Export the sharding types: mesh labels, meshes, and the sharded axis marker
+  export dimwit.sharding.{Mesh, Mesh1, Mesh2, Mesh3, MeshAxis, MeshAxisExtent, MeshAxisIndex, MeshLabel, MeshLabels}
+  export dimwit.sharding.`|@|`
+  export dimwit.sharding.ShardingOps.*
+
   // Export operations
   export dimwit.tensor.TensorOps.*
   export dimwit.linalg.LinearAlgebra.{VectorNormType, MatrixNormType, QRMode}

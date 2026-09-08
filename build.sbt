@@ -84,6 +84,8 @@ lazy val core = (project in file("core"))
     fork := true,
     javaOptions ++= scalapyJavaOptions,
     Test / envVars += "DIMWIT_SKIP_SYNC" -> "true",
+    // The sharding tests need a mesh of devices; a default JAX process reports a single CPU device.
+    Test / envVars += "XLA_FLAGS" -> "--xla_force_host_platform_device_count=8",
     coverageMinimumStmtTotal := 80,
     coverageFailOnMinimum := false,
     coverageHighlighting := true,

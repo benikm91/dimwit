@@ -85,3 +85,20 @@ def jit(f):
 
 def jit_fn(f, jit_kwargs=None):
     return wrap(jax.jit, f, kwargs=jit_kwargs)
+
+# --- sharding -------------------------------------------------------------
+
+def device_mesh(devices, shape, axis_names):
+    """Builds a jax.sharding.Mesh from a flat, row-major list of devices."""
+    import numpy as np
+    grid = np.array(list(devices), dtype=object).reshape(tuple(shape))
+    return jax.sharding.Mesh(grid, axis_names=tuple(axis_names))
+
+def named_sharding(mesh, rank, axis_index, mesh_axis_name):
+    """NamedSharding splitting axis `axis_index` of a rank-`rank` array over `mesh_axis_name`.
+
+    Every other axis is replicated.
+    """
+    spec = [None] * rank
+    spec[axis_index] = mesh_axis_name
+    return jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec(*spec))
