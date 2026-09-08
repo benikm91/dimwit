@@ -335,6 +335,71 @@ class TensorOpsStructureSuite extends DimwitTest:
         )
       )
 
+  describe("where_!"):
+
+    val tAB = Tensor2(Axis[A], Axis[B]).fromArray(
+      Array(
+        Array(1.0f, 2.0f),
+        Array(3.0f, 4.0f)
+      )
+    )
+    val maskAB = Tensor2(Axis[A], Axis[B]).fromArray(
+      Array(
+        Array(true, true),
+        Array(false, false)
+      )
+    )
+
+    it("broadcasts a Tensor0"):
+      where_!(maskAB, tAB, Tensor0(0.0f)) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(1.0f, 2.0f, 0.0f, 0.0f))
+      )
+      where_!(maskAB, Tensor0(0.0f), tAB) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(0.0f, 0.0f, 3.0f, 4.0f))
+      )
+
+    it("broadcasts a tensor with a subset of the labels"):
+      val tB = Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f))
+      where_!(maskAB, tAB, tB) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(1.0f, 2.0f, 10.0f, 20.0f))
+      )
+      where_!(maskAB, tB, tAB) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(10.0f, 20.0f, 3.0f, 4.0f))
+      )
+
+    it("broadcasts the condition"):
+      val maskA = Tensor1(Axis[A]).fromArray(Array(true, false))
+      val tAB2 = Tensor.like(tAB).fromArray(Array(10.0f, 20.0f, 30.0f, 40.0f))
+      where_!(maskA, tAB, tAB2) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(1.0f, 2.0f, 30.0f, 40.0f))
+      )
+
+    it("broadcasts the condition and an alternative"):
+      val maskA = Tensor1(Axis[A]).fromArray(Array(true, false))
+      where_!(maskA, tAB, Tensor0(0.0f)) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(1.0f, 2.0f, 0.0f, 0.0f))
+      )
+      where_!(maskA, Tensor0(0.0f), tAB) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(0.0f, 0.0f, 3.0f, 4.0f))
+      )
+
+    it("broadcasts both alternatives to the shape of the condition"):
+      val tA = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f))
+      val tB = Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f))
+      where_!(maskAB, tA, tB) should approxEqual(
+        Tensor.like(tAB).fromArray(Array(1.0f, 1.0f, 10.0f, 20.0f))
+      )
+
+    it("must require broadcasting"):
+      val tAB2 = Tensor.like(tAB).fromArray(Array(10.0f, 20.0f, 30.0f, 40.0f))
+      val errors = typeCheckErrors("where_!(maskAB, tAB, tAB2)")
+      errors should have size 1
+      errors.head.message should include("use `where` instead of `where_!`")
+
+    it("rejects shapes that are not nested"):
+      val tC = Tensor1(Axis[C]).fromArray(Array(10.0f))
+      "where_!(maskAB, tAB, tC)" shouldNot compile
+
   describe("Concatenation"):
 
     it("Prime axes are rearrangable"):
@@ -456,6 +521,44 @@ class TensorOpsStructureSuite extends DimwitTest:
         t2 should approxEqual(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f, 3.0f)))
         val t3 = t.set(Axis[A].at(1 to 2))(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f)))
         t3 should approxEqual(Tensor1(Axis[A]).fromArray(Array(1.0f, 7.0f, 8.0f)))
+
+      it("slice at a range"):
+        val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f, 4.0f))
+        t.slice(Axis[A].at(1 to 2)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(2.0f, 3.0f)))
+        t.slice(Axis[A].at(1 until 3)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(2.0f, 3.0f)))
+        t.slice(Axis[A].at(0 until 4 by 2)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(1.0f, 3.0f)))
+
+      it("slice at a descending range"):
+        val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f, 4.0f))
+        t.slice(Axis[A].at(3 to 1 by -1)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 3.0f, 2.0f)))
+        t.slice(Axis[A].at(3 until 0 by -1)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 3.0f, 2.0f)))
+        // both spellings of a descending range down to index 0
+        t.slice(Axis[A].at(3 to 0 by -1)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 3.0f, 2.0f, 1.0f)))
+        t.slice(Axis[A].at(3 until -1 by -1)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 3.0f, 2.0f, 1.0f)))
+        t.slice(Axis[A].at(3 to 0 by -2)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 2.0f)))
+
+      it("slice rejects a range that leaves the axis"):
+        val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f, 4.0f))
+        the[IllegalArgumentException] thrownBy t.slice(Axis[A].at(3 until -10000 by -1)) should have message
+          "requirement failed: Range 3 until -10000 by -1 is out of bounds for axis of size 4"
+        an[IllegalArgumentException] should be thrownBy t.slice(Axis[A].at(3 until -3 by -1))
+        an[IllegalArgumentException] should be thrownBy t.slice(Axis[A].at(0 until 10))
+        // a very negative end is fine as long as the step steps over the invalid indices
+        t.slice(Axis[A].at(3 until -3 by -3)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(4.0f, 1.0f)))
+
+      it("slice at an empty range yields a zero-length axis"):
+        val t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+        val empty = t.slice(Axis[A].at(0 until 0))
+        empty.axes shouldBe List("A", "B")
+        empty.shape(Axis[A]) shouldBe 0
+        empty.shape(Axis[B]) shouldBe 2
+        t.slice(Axis[A].at(2 until 2)).shape(Axis[A]) shouldBe 0
+        t.slice(Axis[A].at(1 until 1)).shape(Axis[A]) shouldBe 0
+
+      it("set at an empty range is a no-op"):
+        val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
+        val empty = Tensor1(Axis[A]).fromArray(Array.empty[Float])
+        t.set(Axis[A].at(1 until 1))(empty) should approxEqual(t)
 
     describe("AxisAtIndices"):
 
