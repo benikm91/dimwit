@@ -82,6 +82,29 @@ class ShardingSuite extends DimwitTest:
       val error = intercept[IllegalArgumentException](tensorOf(7).shard(mesh1, Axis[A] -> MeshAxis[X]))
       error.getMessage shouldBe "Cannot shard axis A of extent 7 over mesh axis X of size 4: 7 is not divisible by 4."
 
+  describe("unshard"):
+
+    it("gathers the axis back and drops the mesh annotation"):
+      enoughDevices()
+      val gathered: Tensor2[A, B, Float32] = sharded.unshard(Axis[A |@| X])
+      gathered.axes shouldBe List("A", "B")
+      gathered shouldEqual t
+      isFullyReplicated(gathered) shouldBe true
+
+    it("round-trips with shard"):
+      enoughDevices()
+      sharded.unshard(Axis[A |@| X]).shard(mesh1, Axis[A] -> MeshAxis[X]) shouldEqual t
+
+    it("gives back a tensor that mixes with unsharded ones again"):
+      enoughDevices()
+      val gathered = sharded.unshard(Axis[A |@| X])
+      (gathered + t) shouldEqual (t + t)
+
+    it("cannot be applied to an axis that is not sharded"):
+      enoughDevices()
+      val errors = typeCheckErrors("sharded.unshard(Axis[B])")
+      errors should not be empty
+
   describe("a sharded axis is just another axis"):
 
     it("reducing the sharded axis all-reduces and equals the unsharded sum, bit for bit"):
@@ -130,6 +153,18 @@ class ShardingSuite extends DimwitTest:
       val result: Tensor2[A |@| X, B, Float32] = sharded -! bias
       result shouldEqual (t -! bias)
       deviceCount(result) shouldBe MeshExtent
+
+    it("zips with another tensor sharded the same way"):
+      enoughDevices()
+      val labels = Tensor1(Axis[A]).fromArray(Array.tabulate(BatchExtent)(_.toFloat))
+      val shardedLabels = labels.shard(mesh1, Axis[A] -> MeshAxis[X])
+      val result = zipvmap(Axis[A |@| X])(sharded, shardedLabels) { case (row, label) => row.sum + label }
+      result.axes shouldBe List("A@X")
+      result shouldEqual zipvmap(Axis[A])(t, labels) { case (row, label) => row.sum + label }
+
+    it("reads back to the host, gathering from every device"):
+      enoughDevices()
+      sharded.toArray shouldEqual t.toArray
 
   describe("sharded and unsharded tensors do not mix"):
 

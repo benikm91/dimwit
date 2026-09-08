@@ -38,3 +38,17 @@ object ShardingOps:
         )
       val sharding = Jax.jax_helper.named_sharding(mesh.jaxMesh, t.shape.rank, replacer.index, meshAxisName)
       Tensor[replacer.NewShape, V](Jax.device_put(t.jaxValue, sharding.as[Jax.PyDynamic]))
+
+    /** Gathers a sharded axis back across the mesh, rewriting it from `L |@| A` to `L`.
+      *
+      * Every device ends up holding the whole tensor. Only a sharded axis can be unsharded.
+      *
+      * {{{
+      * val gathered: Tensor2[Batch, Feature, Float32] = sharded.unshard(Axis[Batch |@| X])
+      * }}}
+      */
+    def unshard[L, A](axis: Axis[L |@| A])(using
+        replacer: AxisReplacer[T, L |@| A, L],
+        labels: Labels[replacer.NewShape]
+    ): Tensor[replacer.NewShape, V] =
+      Tensor[replacer.NewShape, V](Jax.jax_helper.replicate(t.jaxValue).as[Jax.PyDynamic])

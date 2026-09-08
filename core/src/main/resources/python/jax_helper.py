@@ -102,3 +102,10 @@ def named_sharding(mesh, rank, axis_index, mesh_axis_name):
     spec = [None] * rank
     spec[axis_index] = mesh_axis_name
     return jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec(*spec))
+
+def replicate(x):
+    """Gathers a sharded array so that every device of its mesh holds the whole thing."""
+    sharding = x.sharding
+    if not hasattr(sharding, "mesh"):
+        return x
+    return jax.device_put(x, jax.sharding.NamedSharding(sharding.mesh, jax.sharding.PartitionSpec()))
