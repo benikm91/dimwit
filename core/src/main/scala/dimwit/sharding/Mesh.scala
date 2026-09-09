@@ -33,8 +33,10 @@ object Mesh:
 
   private[sharding] type ExtractLabels[Extents <: Tuple] = Tuple.Map[Extents, ExtractLabel]
 
-  def apply[Extents <: Tuple](extents: Extents)(using MeshLabels[ExtractLabels[Extents]]): Mesh[ExtractLabels[Extents]] =
-    fromTuple(extents)
+  def apply[A: MeshLabel](extent: MeshAxisExtent[A]): Mesh1[A] = Mesh1(extent)
+  def apply[A: MeshLabel, B: MeshLabel](extent1: MeshAxisExtent[A], extent2: MeshAxisExtent[B]): Mesh2[A, B] = Mesh2(extent1, extent2)
+  def apply[A: MeshLabel, B: MeshLabel, C: MeshLabel](extent1: MeshAxisExtent[A], extent2: MeshAxisExtent[B], extent3: MeshAxisExtent[C]): Mesh3[A, B, C] = Mesh3(extent1, extent2, extent3)
+  def apply[Extents <: Tuple](extents: Extents)(using MeshLabels[ExtractLabels[Extents]]): Mesh[ExtractLabels[Extents]] = fromTuple(extents)
 
   def fromTuple[Extents <: Tuple](extents: Extents)(using labels: MeshLabels[ExtractLabels[Extents]]): Mesh[ExtractLabels[Extents]] =
     val sizes = extents.toList.collect:
