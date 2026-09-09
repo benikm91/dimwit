@@ -1,6 +1,7 @@
 package dimwit.sharding
 
 import dimwit.jax.Jax
+import dimwit.|@|
 import dimwit.tensor.Axis
 import dimwit.tensor.Label
 import dimwit.tensor.Labels
@@ -11,12 +12,10 @@ object ShardingOps:
 
   extension [T <: Tuple: Labels, V](t: Tensor[T, V])
 
-    /** Splits `t` across `mesh` along one axis, rewriting that axis from `L` to `L |@| A`.
-      *
-      * The shards are placed one per device with `jax.device_put` under a `NamedSharding`.
+    /** Splits `t` across `mesh` along one axis, placing one shard per device and rewriting that axis from `L` to `L |@| A`.
       *
       * {{{
-      * val mesh = Mesh(MeshAxis[X] -> 4)
+      * val mesh = Mesh1(MeshAxis[X] -> 4)
       * val sharded: Tensor2[Batch |@| X, Feature, Float32] = t.shard(mesh, Axis[Batch] -> MeshAxis[X])
       * }}}
       *
@@ -39,9 +38,7 @@ object ShardingOps:
       val sharding = Jax.jax_helper.named_sharding(mesh.jaxMesh, t.shape.rank, replacer.index, meshAxisName)
       Tensor[replacer.NewShape, V](Jax.device_put(t.jaxValue, sharding.as[Jax.PyDynamic]))
 
-    /** Gathers a sharded axis back across the mesh, rewriting it from `L |@| A` to `L`.
-      *
-      * Every device ends up holding the whole tensor. Only a sharded axis can be unsharded.
+    /** Gathers a sharded axis back across the mesh, rewriting it from `L |@| A` to `L` so that every device holds the whole tensor.
       *
       * {{{
       * val gathered: Tensor2[Batch, Feature, Float32] = sharded.unshard(Axis[Batch |@| X])

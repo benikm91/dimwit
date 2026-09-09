@@ -50,11 +50,11 @@ class ShardingSuite extends DimwitTest:
 
     it("is built from a tuple of extents, with Mesh1/Mesh2 as special cases"):
       enoughDevices()
-      val single: Mesh[Tuple1[X]] = Mesh(MeshAxis[X] -> MeshExtent)
+      val single = Mesh1(MeshAxis[X] -> MeshExtent)
       single.axisNames shouldBe List("X")
       single.axisSizes shouldBe List(MeshExtent)
 
-      val grid: Mesh[(X, Y)] = Mesh((MeshAxis[X] -> 2, MeshAxis[Y] -> 2))
+      val grid = Mesh((MeshAxis[X] -> 2, MeshAxis[Y] -> 2))
       grid.axisNames shouldBe List("X", "Y")
       grid.size shouldBe 4
       grid.sizeOf(MeshAxis[Y]) shouldBe 2
@@ -70,7 +70,7 @@ class ShardingSuite extends DimwitTest:
 
     it("rewrites the axis type and places the shards on the mesh devices"):
       enoughDevices()
-      val result: Tensor2[A |@| X, B, Float32] = sharded
+      val result = sharded
       result.axes shouldBe List("A@X", "B")
       result.shape.dimensions shouldBe List(BatchExtent, FeatureExtent)
       deviceCount(result) shouldBe MeshExtent
@@ -86,7 +86,7 @@ class ShardingSuite extends DimwitTest:
 
     it("gathers the axis back and drops the mesh annotation"):
       enoughDevices()
-      val gathered: Tensor2[A, B, Float32] = sharded.unshard(Axis[A |@| X])
+      val gathered = sharded.unshard(Axis[A |@| X])
       gathered.axes shouldBe List("A", "B")
       gathered shouldEqual t
       isFullyReplicated(gathered) shouldBe true
@@ -109,7 +109,7 @@ class ShardingSuite extends DimwitTest:
 
     it("reducing the sharded axis all-reduces and equals the unsharded sum, bit for bit"):
       enoughDevices()
-      val result: Tensor1[B, Float32] = sharded.sum(Axis[A |@| X])
+      val result = sharded.sum(Axis[A |@| X])
       result shouldEqual t.sum(Axis[A])
       result.axes shouldBe List("B")
       isFullyReplicated(result) shouldBe true
@@ -121,7 +121,7 @@ class ShardingSuite extends DimwitTest:
 
     it("reducing another axis is local and keeps the mesh annotation"):
       enoughDevices()
-      val result: Tensor1[A |@| X, Float32] = sharded.sum(Axis[B])
+      val result = sharded.sum(Axis[B])
       result shouldEqual t.sum(Axis[B])
       result.axes shouldBe List("A@X")
       isFullyReplicated(result) shouldBe false
@@ -135,7 +135,7 @@ class ShardingSuite extends DimwitTest:
 
     it("vmap maps over the sharded axis, which stays sharded"):
       enoughDevices()
-      val result: Tensor2[A |@| X, B, Float32] = sharded.vmap(Axis[A |@| X])(row => row *! Tensor0(2.0f))
+      val result = sharded.vmap(Axis[A |@| X])(row => row *! Tensor0(2.0f))
       result shouldEqual t.vmap(Axis[A])(row => row *! Tensor0(2.0f))
       result.axes shouldBe List("A@X", "B")
       deviceCount(result) shouldBe MeshExtent
@@ -143,15 +143,17 @@ class ShardingSuite extends DimwitTest:
     it("contracts a replicated tensor against the unsharded axis, staying sharded"):
       enoughDevices()
       val weights = Tensor1(Axis[B]).fromArray(Array.fill(FeatureExtent)(2.0f))
-      val result: Tensor1[A |@| X, Float32] = sharded.dot(Axis[B])(weights)
+      val result = sharded.dot(Axis[B])(weights)
       result shouldEqual t.dot(Axis[B])(weights)
+      result.axes shouldBe List("A@X")
       deviceCount(result) shouldBe MeshExtent
 
     it("broadcasts a replicated tensor over the axes it does share"):
       enoughDevices()
       val bias = Tensor1(Axis[B]).fromArray(Array.fill(FeatureExtent)(1.0f))
-      val result: Tensor2[A |@| X, B, Float32] = sharded -! bias
+      val result = sharded -! bias
       result shouldEqual (t -! bias)
+      result.axes shouldBe List("A@X", "B")
       deviceCount(result) shouldBe MeshExtent
 
     it("zips with another tensor sharded the same way"):

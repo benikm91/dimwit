@@ -2,20 +2,11 @@ package dimwit.sharding
 
 import scala.quoted.*
 
-/** A label for an axis of a device [[Mesh]].
-  *
-  * Mesh labels are a separate kind from the data axis labels carried by
-  * `dimwit.tensor.Label`: a type that `derives Label` has no `MeshLabel` instance and
-  * vice versa, so a data axis label cannot be used where a mesh label is required.
-  *
-  * {{{
-  * trait X derives MeshLabel
-  * }}}
+/** A label for an axis of a device [[Mesh]], declared with `trait X derives MeshLabel`.
+  * The mesh-side counterpart of [[dimwit.tensor.Label]].
   */
 @scala.annotation.implicitNotFound("""
 A mesh axis label ${T} was given or inferred, which does not have a MeshLabel instance.
-Mesh axis labels are a different kind than data axis labels: a type declared with
-'derives Label' cannot be used as a mesh axis label.
 Ensure that all mesh axis types ${T} are defined with 'derives MeshLabel' (e.g. 'trait X derives MeshLabel')
 """)
 trait MeshLabel[T]:
