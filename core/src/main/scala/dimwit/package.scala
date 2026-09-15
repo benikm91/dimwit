@@ -39,6 +39,16 @@ package object dimwit:
     given [A, B](using labelA: Label[A], labelB: Label[B]): Label[A |+| B] with
       val name: String = s"${labelA.name}+${labelB.name}"
 
+  /** Marks the data axis `A` as sharded over the mesh axis `M`, as in `Tensor2[Batch |@| X, Feature, Float32]`.
+    *
+    * `Batch |@| X` is just another axis label, so every tensor operation applies unchanged.
+    */
+  @targetName("Sharded")
+  infix trait |@|[A, M]
+  object `|@|`:
+    given [A, M](using label: Label[A], meshLabel: MeshLabel[M]): Label[A |@| M] with
+      val name: String = s"${label.name}@${meshLabel.name}"
+
   // Export tensor and related types
   export dimwit.tensor.{Tensor, Tensor0, Tensor1, Tensor2, Tensor3, Tensor4, TypedIndex}
   export dimwit.tensor.{Shape, Shape0, Shape1, Shape2, Shape3}
@@ -87,6 +97,10 @@ package object dimwit:
   // export some stats types
   export dimwit.stats.{Prob, LogProb}
   export dimwit.stats.{Distribution, IndependentDistribution, MultivariateDistribution, UnivariateDistribution}
+
+  // Export sharding stuff
+  export dimwit.sharding.{Mesh, Mesh1, Mesh2, Mesh3, MeshAxis, MeshAxisExtent, MeshAxisIndex, MeshLabel, MeshLabels}
+  export dimwit.sharding.ShardingOps.*
 
   /** Memory management helpfer making sure
     * all python objects allocated ar freed
