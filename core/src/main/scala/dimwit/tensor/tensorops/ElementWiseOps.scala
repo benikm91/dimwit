@@ -189,7 +189,18 @@ object ElementWiseOps:
     def round: Tensor[T, V] = Tensor(Jax.jnp.round(t.jaxValue))
     def isnan: Tensor[T, Bool] = Tensor(Jax.jnp.isnan(t.jaxValue))
     def isfinite: Tensor[T, Bool] = Tensor(Jax.jnp.isfinite(t.jaxValue))
-    def nanToNum: Tensor[T, V] = Tensor(Jax.jnp.nan_to_num(t.jaxValue))
+
+    /** replaces NaN by `nan`, +inf by `posInf` and -inf by `negInf`.
+      * By default, NaN becomes 0 and ±inf become the largest/smallest finite value of the dtype.
+      */
+    def nanToNum(using
+        IsFloating[V]
+    )(
+        nan: Tensor0[V],
+        posInf: Tensor0[V] = IsFloating[V].maxFinite,
+        negInf: Tensor0[V] = IsFloating[V].minFinite
+    ): Tensor[T, V] =
+      Tensor(Jax.jnp.nan_to_num(t.jaxValue, nan = nan.jaxValue, posinf = posInf.jaxValue, neginf = negInf.jaxValue))
 
     // activation functions
     def sigmoid: Tensor[T, V] = Tensor(Jax.jnn.sigmoid(t.jaxValue))

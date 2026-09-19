@@ -80,7 +80,21 @@ class TensorOpsElementwiseSuite extends DimwitTest:
 
     it("nanToNum"):
       val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
-      t.nanToNum shouldEqual Tensor.like(t2).fromArray(Array(0.0f, Float.MaxValue, -Float.MaxValue, 1.0f))
+      t.nanToNum(Tensor0(0f)) shouldEqual Tensor.like(t2).fromArray(Array(0.0f, Float.MaxValue, -Float.MaxValue, 1.0f))
+
+    it("maxFinite/minFinite of the floating type"):
+      IsFloating[Float32].maxFinite shouldEqual Tensor0(Float.MaxValue)
+      IsFloating[Float32].minFinite shouldEqual Tensor0(-Float.MaxValue)
+      IsFloating[Float64].maxFinite shouldEqual Tensor0(Double.MaxValue)
+
+    it("nanToNum with replacement values"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
+      t.nanToNum(nan = Tensor0(-1.0f), posInf = Tensor0(100.0f), negInf = Tensor0(-100.0f)) shouldEqual
+        Tensor.like(t2).fromArray(Array(-1.0f, 100.0f, -100.0f, 1.0f))
+
+    it("nanToNum with only some replacement values"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
+      t.nanToNum(nan = Tensor0(0f), posInf = Tensor0(100.0f)) shouldEqual Tensor.like(t2).fromArray(Array(0.0f, 100.0f, -Float.MaxValue, 1.0f))
 
     it("mod"):
       val t = Tensor.like(t2).fromArray(Array(-7.0f, 7.0f, -7.0f, 7.0f))
