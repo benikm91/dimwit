@@ -129,3 +129,35 @@ class TensorCreationSuite extends DimwitTest:
       Tensor2(Axis[A] -> 2, Axis[B] -> 3).eye.dtype shouldBe DType.Float32
       Tensor2(Axis[A] -> 2, Axis[B] -> 3).eye(VType[Int32]).dtype shouldBe DType.Int32
       Tensor2(Shape2(Axis[A] -> 2, Axis[B] -> 3)).eye(VType[Int16]).dtype shouldBe DType.Int16
+
+  describe("arange"):
+
+    it("stop only: starts at 0 with step 1"):
+      val result = Tensor1(Axis[A]).arange(4)
+      result.shape shouldEqual Shape1(Axis[A] -> 4)
+      result shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 1, 2, 3))
+
+    it("start and stop: half-open interval"):
+      Tensor1(Axis[A]).arange(2, 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4))
+
+    it("step: extent is ceil((stop - start) / step), negative steps count down"):
+      Tensor1(Axis[A]).arange(0, 7, 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
+      Tensor1(Axis[A]).arange(3, 0, -1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3, 2, 1))
+
+    it("empty interval gives an empty vector"):
+      Tensor1(Axis[A]).arange(0).shape shouldEqual Shape1(Axis[A] -> 0)
+      Tensor1(Axis[A]).arange(5, 2).shape shouldEqual Shape1(Axis[A] -> 0)
+
+    it("derives the value type from the arguments"):
+      Tensor1(Axis[A]).arange(3).dtype shouldBe DType.Int32
+      Tensor1(Axis[A]).arange(0f, 1f, 0.25f) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 0.25f, 0.5f, 0.75f))
+      withJaxX64Support:
+        Tensor1(Axis[A]).arange(0.5).dtype shouldBe DType.Float64
+
+    it("typed factory takes the vtype"):
+      Tensor1(Axis[A], VType[Int16]).arange(3).dtype shouldBe DType.Int16
+      Tensor1(Axis[A], VType[Float32]).arange(1f, 3f).dtype shouldBe DType.Float32
+
+    it("can be consumed as gather indices by take"):
+      val t = Tensor1(Axis[A]).fromArray(Array(10.0f, 20.0f, 30.0f))
+      t.take(Axis[A])(Tensor1(Axis[B]).arange(3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))

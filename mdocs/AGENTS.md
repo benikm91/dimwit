@@ -161,6 +161,33 @@ val intEye = Tensor2(Axis[A] -> 3, Axis[B] -> 3).eye(VType[Int32])
 val notAMatrix = Tensor1(Axis[A] -> 3).eye
 ```
 
+### Ranges with `arange`
+
+`arange` creates a vector of evenly spaced values in the half-open interval `[start, stop)`, like `jnp.arange`.
+The extent of the axis follows from the arguments, so it is a method on the `Tensor1(Axis[L])` factory.
+
+```scala mdoc:silent
+// 0, 1, 2, 3
+val range = Tensor1(Axis[A]).arange(4)
+
+// 2, 3, 4
+val fromStart = Tensor1(Axis[A]).arange(2, 5)
+
+// 0, 3, 6: the extent is ceil((stop - start) / step)
+val stepped = Tensor1(Axis[A]).arange(0, 7, 3)
+
+// Like fill and fromArray, the value type follows the arguments: Int -> Int32, Float -> Float32
+val floatRange = Tensor1(Axis[A]).arange(0.0f, 1.0f, 0.25f)
+
+// ... or is given explicitly on the typed factory
+val shortRange = Tensor1(Axis[A], VType[Int16]).arange(4)
+```
+
+```scala mdoc:fail
+// ERROR: arange only exists on the rank 1 factory
+val notAVector = Tensor2(Axis[A], Axis[B]).arange(4)
+```
+
 ### Type Aliases for Common Shapes
 
 ```scala mdoc:silent

@@ -279,6 +279,22 @@ object Tensor1:
     def fromArray(values: Array[Float]): Tensor1[L, Float32] = Tensor1(axis, VType[Float32]).fromArray(values)
     def fromArray(values: Array[Double]): Tensor1[L, Float64] = Tensor1(axis, VType[Float64]).fromArray(values)
 
+    /** Creates a vector of evenly spaced values in the half-open interval `[start, stop)`,
+      * like `jnp.arange`. The extent of the axis is `ceil((stop - start) / step)`.
+      */
+    def arange(stop: Int): Tensor1[L, Int32] = arange(0, stop)
+    def arange(start: Int, stop: Int): Tensor1[L, Int32] = arange(start, stop, 1)
+    def arange(start: Int, stop: Int, step: Int): Tensor1[L, Int32] = Tensor1(axis, VType[Int32]).arange(start, stop, step)
+    def arange(stop: Long): Tensor1[L, Int64] = arange(0L, stop)
+    def arange(start: Long, stop: Long): Tensor1[L, Int64] = arange(start, stop, 1L)
+    def arange(start: Long, stop: Long, step: Long): Tensor1[L, Int64] = Tensor1(axis, VType[Int64]).arange(start, stop, step)
+    def arange(stop: Float): Tensor1[L, Float32] = arange(0f, stop)
+    def arange(start: Float, stop: Float): Tensor1[L, Float32] = arange(start, stop, 1f)
+    def arange(start: Float, stop: Float, step: Float): Tensor1[L, Float32] = Tensor1(axis, VType[Float32]).arange(start, stop, step)
+    def arange(stop: Double): Tensor1[L, Float64] = arange(0d, stop)
+    def arange(start: Double, stop: Double): Tensor1[L, Float64] = arange(start, stop, 1d)
+    def arange(start: Double, stop: Double, step: Double): Tensor1[L, Float64] = Tensor1(axis, VType[Float64]).arange(start, stop, step)
+
   class AxisTypedFactory[L: Label, V](axis: Axis[L], vtype: VType[V]):
 
     def fromArray(values: Array[Boolean])(using IsBoolean[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
@@ -288,6 +304,20 @@ object Tensor1:
     def fromArray(values: Array[Long])(using IsInteger[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
     def fromArray(values: Array[Float])(using IsFloating[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
     def fromArray(values: Array[Double])(using IsFloating[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
+
+    /** @see [[AxisFactory.arange]] */
+    def arange(stop: Int)(using IsInteger[V]): Tensor1[L, V] = arange(0, stop)
+    def arange(start: Int, stop: Int)(using IsInteger[V]): Tensor1[L, V] = arange(start, stop, 1)
+    def arange(start: Int, stop: Int, step: Int)(using IsInteger[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
+    def arange(stop: Long)(using IsInteger[V]): Tensor1[L, V] = arange(0L, stop)
+    def arange(start: Long, stop: Long)(using IsInteger[V]): Tensor1[L, V] = arange(start, stop, 1L)
+    def arange(start: Long, stop: Long, step: Long)(using IsInteger[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
+    def arange(stop: Float)(using IsFloating[V]): Tensor1[L, V] = arange(0f, stop)
+    def arange(start: Float, stop: Float)(using IsFloating[V]): Tensor1[L, V] = arange(start, stop, 1f)
+    def arange(start: Float, stop: Float, step: Float)(using IsFloating[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
+    def arange(stop: Double)(using IsFloating[V]): Tensor1[L, V] = arange(0d, stop)
+    def arange(start: Double, stop: Double)(using IsFloating[V]): Tensor1[L, V] = arange(start, stop, 1d)
+    def arange(start: Double, stop: Double, step: Double)(using IsFloating[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
 
   def apply[L: Label](axis: Axis[L]): AxisFactory[L] = AxisFactory(axis)
   def apply[L: Label, V](axis: Axis[L], vtype: VType[V]): AxisTypedFactory[L, V] = AxisTypedFactory(axis, vtype)
