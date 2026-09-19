@@ -10,6 +10,7 @@ import dimwit.tensor.Labels
 import dimwit.tensor.TensorOps.IsBoolean
 import dimwit.tensor.TensorOps.IsFloating
 import dimwit.tensor.TensorOps.IsInteger
+import dimwit.tensor.TensorOps.IsNumber
 import dimwit.tensor.TypedIndex
 import dimwit.tensor.VType
 import me.shadaj.scalapy.py
@@ -265,7 +266,8 @@ object Tensor0:
   def apply[V](jaxValue: Jax.PyDynamic): Tensor0[V] = Tensor(jaxValue)
 
 /** Companion object for Tensors of rank 1 (vectors).
-  *  Provides factory methods for creating tensors of rank 1 with various value types.
+  *  Provides factory methods for creating tensors of rank 1 with various value types,
+  *  and functions from a Tensor1 to a Tensor1 (e.g. `cumsum`, `sort`, `softmax`) that can be lifted to any shape with `vapply`.
   */
 object Tensor1:
 
@@ -294,6 +296,55 @@ object Tensor1:
 
   def apply[L: Label](axisExtent: AxisExtent[L]): Tensor.DefaultsFactory[Tuple1[L]] = Tensor.DefaultsFactory(Shape(axisExtent))
   def apply[L: Label, V](axisExtent: AxisExtent[L], vtype: VType[V]): Tensor.TypedFactory[Tuple1[L], V] = Tensor.TypedFactory(Shape(axisExtent), vtype)
+
+  // ---------------------------------------------------------
+  // Functions from a Tensor1 to a Tensor1.
+  // They can be lifted to any tensor shape with `vapply`, e.g. `t.vapply(Axis[A])(Tensor1.softmax)`.
+  // ---------------------------------------------------------
+
+  /** sorts the Tensor1 `t`. */
+  def sort[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnp.sort(t.jaxValue, axis = 0))
+
+  /** returns the indices that would sort the Tensor1 `t`. */
+  def argsort[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, Int32] =
+    Tensor(Jax.jnp.argsort(t.jaxValue, axis = 0))
+
+  /** computes the cumulative sum of the Tensor1 `t`. */
+  def cumsum[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnp.cumsum(t.jaxValue, axis = 0))
+
+  /** computes the cumulative product of the Tensor1 `t`. */
+  def cumprod[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnp.cumprod(t.jaxValue, axis = 0))
+
+  /** computes the cumulative maximum of the Tensor1 `t`. */
+  def cummax[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.lax.cummax(t.jaxValue, axis = 0))
+
+  /** computes the cumulative minimum of the Tensor1 `t`. */
+  def cummin[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.lax.cummin(t.jaxValue, axis = 0))
+
+  /** computes the cumulative log-sum-exp of the Tensor1 `t`, i.e. a numerically stable `log(cumsum(exp(t)))`. */
+  def logcumsumexp[L: Label, V: IsFloating](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.lax.cumlogsumexp(t.jaxValue, axis = 0))
+
+  /** computes the discrete difference of the Tensor1 `t`, reducing its size by one. */
+  def diff[L: Label, V: IsNumber](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnp.diff(t.jaxValue, axis = 0))
+
+  /** rolls the elements of the Tensor1 `t` by `shift` positions; elements shifted beyond the end re-appear at the start. */
+  def roll[L: Label, V](shift: Int)(t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnp.roll(t.jaxValue, shift = shift, axis = 0))
+
+  /** computes the softmax of the Tensor1 `t`. */
+  def softmax[L: Label, V: IsFloating](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnn.softmax(t.jaxValue, axis = 0))
+
+  /** computes the log of the softmax of the Tensor1 `t`, more stable than `softmax(t).log`. */
+  def logSoftmax[L: Label, V: IsFloating](t: Tensor1[L, V]): Tensor1[L, V] =
+    Tensor(Jax.jnn.log_softmax(t.jaxValue, axis = 0))
 
 /* Companion object for Tensors of rank 2 (matrices).
  *  Provides factory methods for creating tensors of rank 2 with various value types.

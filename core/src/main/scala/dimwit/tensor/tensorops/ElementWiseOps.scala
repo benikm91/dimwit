@@ -191,6 +191,11 @@ object ElementWiseOps:
     def isfinite: Tensor[T, Bool] = Tensor(Jax.jnp.isfinite(t.jaxValue))
     def nanToNum: Tensor[T, V] = Tensor(Jax.jnp.nan_to_num(t.jaxValue))
 
+    // activation functions
+    def sigmoid: Tensor[T, V] = Tensor(Jax.jnn.sigmoid(t.jaxValue))
+    def relu: Tensor[T, V] = Tensor(Jax.jnn.relu(t.jaxValue))
+    def gelu: Tensor[T, V] = Tensor(Jax.jnn.gelu(t.jaxValue))
+
     def approxEquals(other: Tensor[T, V], tolerance: Float = 1e-6f): Tensor0[Bool] = approxElementEquals(other, tolerance).all
     def approxElementEquals(other: Tensor[T, V], tolerance: Float = 1e-6f): Tensor[T, Bool] =
       Tensor(

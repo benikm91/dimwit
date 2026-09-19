@@ -3,8 +3,6 @@ package dimwit.examples.basic
 import dimwit.Conversions.given
 import dimwit.*
 import dimwit.autodiff.*
-import dimwit.nn.ActivationFunctions.relu
-import dimwit.nn.ActivationFunctions.sigmoid
 import dimwit.optimizer.GradientDescent
 import dimwit.random.Random
 import dimwit.stats.Normal
@@ -24,7 +22,7 @@ object LogisticRegression:
       params.weights.dot(Axis[Feature])(input) + params.bias
 
     def probits(input: Tensor1[Feature, Float32]): Tensor0[Float32] =
-      sigmoid(logits(input))
+      logits(input).sigmoid
 
     def apply(input: Tensor1[Feature, Float32]): Tensor0[Bool] =
       logits(input) >= Tensor0(0f)
@@ -47,7 +45,7 @@ object LogisticRegression:
       val losses = zipvmap(Axis[Sample])(data, labels.asFloat32):
         case (sample, label) =>
           val logits = model.logits(sample)
-          relu(logits) - logits * label + ((-logits.abs).exp + 1f).log
+          logits.relu - logits * label + ((-logits.abs).exp + 1f).log
       losses.mean
 
   def main(args: Array[String]): Unit =

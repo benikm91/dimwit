@@ -31,6 +31,15 @@ class TensorOpsElementwiseSuite extends DimwitTest:
     it("abs"):
       t2.abs should approxEqual(Tensor.like(t2).fromArray(Array(1.0f, 0.0f, 1.0f, 4.0f)))
 
+    it("relu"):
+      t2.relu should approxEqual(Tensor.like(t2).fromArray(Array(0.0f, 0.0f, 1.0f, 4.0f)))
+
+    it("sigmoid"):
+      t2.sigmoid should approxEqual(Tensor.like(t2).fromArray(Array(0.26894143f, 0.5f, 0.7310586f, 0.98201376f)), tolerance = 1e-5f)
+
+    it("gelu"):
+      t2.gelu should approxEqual(Tensor.like(t2).fromArray(Array(-0.15880796f, 0.0f, 0.841192f, 3.9999299f)), tolerance = 1e-5f)
+
     it("sign"):
       t2.sign should approxEqual(Tensor.like(t2).fromArray(Array(-1.0f, 0.0f, 1.0f, 1.0f)))
 

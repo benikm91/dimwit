@@ -54,6 +54,7 @@ object TensorOps:
 
   export tensorops.ElementWiseOps.*
   export tensorops.ReductionOps.*
+  export tensorops.AlongAxisOps.*
   export tensorops.ContractionOps.*
   export tensorops.ConvolutionOps.*
   export tensorops.LinearAlgebraOps.*
