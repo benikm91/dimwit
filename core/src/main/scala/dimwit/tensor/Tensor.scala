@@ -10,6 +10,7 @@ import dimwit.tensor.Labels
 import dimwit.tensor.TensorOps.IsBoolean
 import dimwit.tensor.TensorOps.IsFloating
 import dimwit.tensor.TensorOps.IsInteger
+import dimwit.tensor.TensorOps.IsNumber
 import dimwit.tensor.TypedIndex
 import dimwit.tensor.VType
 import me.shadaj.scalapy.py
@@ -279,21 +280,11 @@ object Tensor1:
     def fromArray(values: Array[Float]): Tensor1[L, Float32] = Tensor1(axis, VType[Float32]).fromArray(values)
     def fromArray(values: Array[Double]): Tensor1[L, Float64] = Tensor1(axis, VType[Float64]).fromArray(values)
 
-    /** Creates a vector of evenly spaced values in the half-open interval `[start, stop)`,
-      * like `jnp.arange`. The extent of the axis is `ceil((stop - start) / step)`.
+    /** Creates a vector with the elements of the given range, like `jnp.arange`.
+      * The extent of the axis is `range.length`.
       */
-    def arange(stop: Int): Tensor1[L, Int32] = arange(0, stop)
-    def arange(start: Int, stop: Int): Tensor1[L, Int32] = arange(start, stop, 1)
-    def arange(start: Int, stop: Int, step: Int): Tensor1[L, Int32] = Tensor1(axis, VType[Int32]).arange(start, stop, step)
-    def arange(stop: Long): Tensor1[L, Int64] = arange(0L, stop)
-    def arange(start: Long, stop: Long): Tensor1[L, Int64] = arange(start, stop, 1L)
-    def arange(start: Long, stop: Long, step: Long): Tensor1[L, Int64] = Tensor1(axis, VType[Int64]).arange(start, stop, step)
-    def arange(stop: Float): Tensor1[L, Float32] = arange(0f, stop)
-    def arange(start: Float, stop: Float): Tensor1[L, Float32] = arange(start, stop, 1f)
-    def arange(start: Float, stop: Float, step: Float): Tensor1[L, Float32] = Tensor1(axis, VType[Float32]).arange(start, stop, step)
-    def arange(stop: Double): Tensor1[L, Float64] = arange(0d, stop)
-    def arange(start: Double, stop: Double): Tensor1[L, Float64] = arange(start, stop, 1d)
-    def arange(start: Double, stop: Double, step: Double): Tensor1[L, Float64] = Tensor1(axis, VType[Float64]).arange(start, stop, step)
+    def arange[V: IsNumber](range: Range, vtype: VType[V] = VType[Int32]): Tensor1[L, V] =
+      Tensor1(axis, vtype).arange(range)
 
   class AxisTypedFactory[L: Label, V](axis: Axis[L], vtype: VType[V]):
 
@@ -306,18 +297,11 @@ object Tensor1:
     def fromArray(values: Array[Double])(using IsFloating[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
 
     /** @see [[AxisFactory.arange]] */
-    def arange(stop: Int)(using IsInteger[V]): Tensor1[L, V] = arange(0, stop)
-    def arange(start: Int, stop: Int)(using IsInteger[V]): Tensor1[L, V] = arange(start, stop, 1)
-    def arange(start: Int, stop: Int, step: Int)(using IsInteger[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
-    def arange(stop: Long)(using IsInteger[V]): Tensor1[L, V] = arange(0L, stop)
-    def arange(start: Long, stop: Long)(using IsInteger[V]): Tensor1[L, V] = arange(start, stop, 1L)
-    def arange(start: Long, stop: Long, step: Long)(using IsInteger[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
-    def arange(stop: Float)(using IsFloating[V]): Tensor1[L, V] = arange(0f, stop)
-    def arange(start: Float, stop: Float)(using IsFloating[V]): Tensor1[L, V] = arange(start, stop, 1f)
-    def arange(start: Float, stop: Float, step: Float)(using IsFloating[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
-    def arange(stop: Double)(using IsFloating[V]): Tensor1[L, V] = arange(0d, stop)
-    def arange(start: Double, stop: Double)(using IsFloating[V]): Tensor1[L, V] = arange(start, stop, 1d)
-    def arange(start: Double, stop: Double, step: Double)(using IsFloating[V]): Tensor1[L, V] = Tensor(Jax.jnp.arange(start, stop, step, dtype = vtype.dtype.jaxType))
+    def arange(range: Range)(using IsNumber[V]): Tensor1[L, V] =
+      val stop = range match
+        case r: Range.Inclusive => r.end + r.step.sign
+        case r: Range.Exclusive => r.end
+      Tensor(Jax.jnp.arange(range.start, stop, range.step, dtype = vtype.dtype.jaxType))
 
   def apply[L: Label](axis: Axis[L]): AxisFactory[L] = AxisFactory(axis)
   def apply[L: Label, V](axis: Axis[L], vtype: VType[V]): AxisTypedFactory[L, V] = AxisTypedFactory(axis, vtype)

@@ -132,32 +132,34 @@ class TensorCreationSuite extends DimwitTest:
 
   describe("arange"):
 
-    it("stop only: starts at 0 with step 1"):
-      val result = Tensor1(Axis[A]).arange(4)
+    it("until: half-open interval"):
+      val result = Tensor1(Axis[A]).arange(0 until 4)
       result.shape shouldEqual Shape1(Axis[A] -> 4)
       result shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 1, 2, 3))
+      Tensor1(Axis[A]).arange(2 until 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4))
 
-    it("start and stop: half-open interval"):
-      Tensor1(Axis[A]).arange(2, 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4))
+    it("to: inclusive interval"):
+      Tensor1(Axis[A]).arange(2 to 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4, 5))
+      Tensor1(Axis[A]).arange(0 to 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
 
-    it("step: extent is ceil((stop - start) / step), negative steps count down"):
-      Tensor1(Axis[A]).arange(0, 7, 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
-      Tensor1(Axis[A]).arange(3, 0, -1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3, 2, 1))
+    it("by: stepped and negative steps count down"):
+      Tensor1(Axis[A]).arange(0 until 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
+      Tensor1(Axis[A]).arange(3 until 0 by -1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3, 2, 1))
+      Tensor1(Axis[A]).arange(10 to 0 by -3) shouldEqual Tensor1(Axis[A]).fromArray(Array(10, 7, 4, 1))
 
-    it("empty interval gives an empty vector"):
-      Tensor1(Axis[A]).arange(0).shape shouldEqual Shape1(Axis[A] -> 0)
-      Tensor1(Axis[A]).arange(5, 2).shape shouldEqual Shape1(Axis[A] -> 0)
+    it("empty range gives an empty vector"):
+      Tensor1(Axis[A]).arange(0 until 0).shape shouldEqual Shape1(Axis[A] -> 0)
+      Tensor1(Axis[A]).arange(5 until 2).shape shouldEqual Shape1(Axis[A] -> 0)
 
-    it("derives the value type from the arguments"):
-      Tensor1(Axis[A]).arange(3).dtype shouldBe DType.Int32
-      Tensor1(Axis[A]).arange(0f, 1f, 0.25f) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 0.25f, 0.5f, 0.75f))
-      withJaxX64Support:
-        Tensor1(Axis[A]).arange(0.5).dtype shouldBe DType.Float64
+    it("defaults to Int32 and takes the vtype as an argument"):
+      Tensor1(Axis[A]).arange(0 until 3).dtype shouldBe DType.Int32
+      Tensor1(Axis[A]).arange(0 until 3, VType[Int16]).dtype shouldBe DType.Int16
+      Tensor1(Axis[A]).arange(0 until 3, VType[Float32]) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 1.0f, 2.0f))
 
-    it("typed factory takes the vtype"):
-      Tensor1(Axis[A], VType[Int16]).arange(3).dtype shouldBe DType.Int16
-      Tensor1(Axis[A], VType[Float32]).arange(1f, 3f).dtype shouldBe DType.Float32
+    it("typed factory uses its vtype"):
+      Tensor1(Axis[A], VType[Int16]).arange(0 until 3).dtype shouldBe DType.Int16
+      Tensor1(Axis[A], VType[Float32]).arange(1 until 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f))
 
     it("can be consumed as gather indices by take"):
       val t = Tensor1(Axis[A]).fromArray(Array(10.0f, 20.0f, 30.0f))
-      t.take(Axis[A])(Tensor1(Axis[B]).arange(3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))
+      t.take(Axis[A])(Tensor1(Axis[B]).arange(0 until 3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))

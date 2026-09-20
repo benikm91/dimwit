@@ -199,33 +199,37 @@ val notAMatrix = Tensor1(Axis[A] -> 3).eye
 
 ### Ranges with `arange`
 
-`arange` creates a vector of evenly spaced values in the half-open interval `[start, stop)`, like `jnp.arange`.
-The extent of the axis follows from the arguments, so it is a method on the `Tensor1(Axis[L])` factory.
+`arange` creates a vector with the elements of a Scala `Range`, like `jnp.arange`.
+The extent of the axis is the length of the range, so it is a method on the `Tensor1(Axis[L])` factory.
 
 ```scala
 // 0, 1, 2, 3
-val range = Tensor1(Axis[A]).arange(4)
+val range = Tensor1(Axis[A]).arange(0 until 4)
 
-// 2, 3, 4
-val fromStart = Tensor1(Axis[A]).arange(2, 5)
+// 2, 3, 4, 5
+val inclusive = Tensor1(Axis[A]).arange(2 to 5)
 
-// 0, 3, 6: the extent is ceil((stop - start) / step)
-val stepped = Tensor1(Axis[A]).arange(0, 7, 3)
+// 0, 3, 6
+val stepped = Tensor1(Axis[A]).arange(0 until 7 by 3)
 
-// Like fill and fromArray, the value type follows the arguments: Int -> Int32, Float -> Float32
-val floatRange = Tensor1(Axis[A]).arange(0.0f, 1.0f, 0.25f)
+// 3, 2, 1
+val descending = Tensor1(Axis[A]).arange(3 until 0 by -1)
 
-// ... or is given explicitly on the typed factory
-val shortRange = Tensor1(Axis[A], VType[Int16]).arange(4)
+// A Range has no value type to derive from, so arange defaults to Int32
+// and takes the value type as an argument ...
+val floatRange = Tensor1(Axis[A]).arange(0 until 4, VType[Float32])
+
+// ... or from the typed factory
+val shortRange = Tensor1(Axis[A], VType[Int16]).arange(0 until 4)
 ```
 
 ```scala
 // ERROR: arange only exists on the rank 1 factory
-val notAVector = Tensor2(Axis[A], Axis[B]).arange(4)
+val notAVector = Tensor2(Axis[A], Axis[B]).arange(0 until 4)
 // error:
 // value arange is not a member of dimwit.tensor.Tensor2.Axes2Factory[repl.MdocSession.MdocApp.A,
 //   repl.MdocSession.MdocApp.B]
-// val notAVector = Tensor2(Axis[A], Axis[B]).arange(4)
+// val notAVector = Tensor2(Axis[A], Axis[B]).arange(0 until 4)
 //                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
@@ -422,10 +426,10 @@ val wrong = t.sum(Axis[C])
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 63 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 64 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 109
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 110
 //
 ```
 
@@ -467,10 +471,10 @@ val wrong = t + 5.0f  // Use +! instead
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 63 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 64 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 118
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 119
 //
 ```
 
@@ -560,19 +564,19 @@ val wrong = m1.dot(Axis[B])(m2)
 // Conflicting definitions:
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 140 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 141 and
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 143
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 144
 // 
 // error: 
 // Conflicting definitions:
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.B, MdocApp1.this.C,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 141 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 142 and
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.C, MdocApp1.this.D,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 144
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 145
 //
 ```
 
