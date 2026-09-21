@@ -280,11 +280,18 @@ object Tensor1:
     def fromArray(values: Array[Float]): Tensor1[L, Float32] = Tensor1(axis, VType[Float32]).fromArray(values)
     def fromArray(values: Array[Double]): Tensor1[L, Float64] = Tensor1(axis, VType[Float64]).fromArray(values)
 
-    /** Creates a vector with the elements of the given range, like `jnp.arange`.
-      * The extent of the axis is `range.length`.
+    /** Creates a vector with the elements of the given range.
+      * A `Range` only holds integers; for evenly spaced floating point values use [[linspace]].
       */
-    def arange[V: IsNumber](range: Range, vtype: VType[V] = VType[Int32]): Tensor1[L, V] =
-      Tensor1(axis, vtype).arange(range)
+    def fromRange[V: IsInteger](range: Range, vtype: VType[V] = VType[Int32]): Tensor1[L, V] =
+      Tensor1(axis, vtype).fromRange(range)
+
+    /** Creates a vector of `num` evenly spaced values over `[start, stop]`.
+      * With `endpoint = false` the interval is half-open `[start, stop)`, i.e. `stop` is excluded.
+      * `start` and `stop` may be traced (e.g. `x.min`, `x.max`), only `num` must be static.
+      */
+    def linspace[V: IsFloating](start: Tensor0[V], stop: Tensor0[V], num: Int, endpoint: Boolean = true): Tensor1[L, V] =
+      Tensor1(axis, VType[V]).linspace(start, stop, num, endpoint)
 
   class AxisTypedFactory[L: Label, V](axis: Axis[L], vtype: VType[V]):
 
@@ -296,12 +303,16 @@ object Tensor1:
     def fromArray(values: Array[Float])(using IsFloating[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
     def fromArray(values: Array[Double])(using IsFloating[V]): Tensor1[L, V] = ArrayWriter.fromArray[Tuple1[L], V](Shape1(axis -> values.length), values)
 
-    /** @see [[AxisFactory.arange]] */
-    def arange(range: Range)(using IsNumber[V]): Tensor1[L, V] =
+    /** @see [[AxisFactory.fromRange]] */
+    def fromRange(range: Range)(using IsInteger[V]): Tensor1[L, V] =
       val stop = range match
         case r: Range.Inclusive => r.end + r.step.sign
         case r: Range.Exclusive => r.end
       Tensor(Jax.jnp.arange(range.start, stop, range.step, dtype = vtype.dtype.jaxType))
+
+    /** @see [[AxisFactory.linspace]] */
+    def linspace(start: Tensor0[V], stop: Tensor0[V], num: Int, endpoint: Boolean = true)(using IsFloating[V]): Tensor1[L, V] =
+      Tensor(Jax.jnp.linspace(start.jaxValue, stop.jaxValue, num, endpoint = endpoint, dtype = vtype.dtype.jaxType))
 
   def apply[L: Label](axis: Axis[L]): AxisFactory[L] = AxisFactory(axis)
   def apply[L: Label, V](axis: Axis[L], vtype: VType[V]): AxisTypedFactory[L, V] = AxisTypedFactory(axis, vtype)

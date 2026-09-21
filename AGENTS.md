@@ -197,40 +197,88 @@ val notAMatrix = Tensor1(Axis[A] -> 3).eye
 //                  ^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-### Ranges with `arange`
+### Integer Ranges with `fromRange`
 
-`arange` creates a vector with the elements of a Scala `Range`, like `jnp.arange`.
+`fromRange` creates a vector with the elements of a Scala `Range`, like `jnp.arange`.
 The extent of the axis is the length of the range, so it is a method on the `Tensor1(Axis[L])` factory.
 
 ```scala
 // 0, 1, 2, 3
-val range = Tensor1(Axis[A]).arange(0 until 4)
+val range = Tensor1(Axis[A]).fromRange(0 until 4)
 
 // 2, 3, 4, 5
-val inclusive = Tensor1(Axis[A]).arange(2 to 5)
+val inclusive = Tensor1(Axis[A]).fromRange(2 to 5)
 
 // 0, 3, 6
-val stepped = Tensor1(Axis[A]).arange(0 until 7 by 3)
+val stepped = Tensor1(Axis[A]).fromRange(0 until 7 by 3)
 
 // 3, 2, 1
-val descending = Tensor1(Axis[A]).arange(3 until 0 by -1)
+val descending = Tensor1(Axis[A]).fromRange(3 until 0 by -1)
 
-// A Range has no value type to derive from, so arange defaults to Int32
-// and takes the value type as an argument ...
-val floatRange = Tensor1(Axis[A]).arange(0 until 4, VType[Float32])
+// A Range has no value type to derive from, so fromRange defaults to Int32
+// and takes the (integer) value type as an argument ...
+val byteRange = Tensor1(Axis[A]).fromRange(0 until 4, VType[Int8])
 
 // ... or from the typed factory
-val shortRange = Tensor1(Axis[A], VType[Int16]).arange(0 until 4)
+val shortRange = Tensor1(Axis[A], VType[Int16]).fromRange(0 until 4)
 ```
 
 ```scala
-// ERROR: arange only exists on the rank 1 factory
-val notAVector = Tensor2(Axis[A], Axis[B]).arange(0 until 4)
+// ERROR: fromRange only exists on the rank 1 factory
+val notAVector = Tensor2(Axis[A], Axis[B]).fromRange(0 until 4)
 // error:
-// value arange is not a member of dimwit.tensor.Tensor2.Axes2Factory[repl.MdocSession.MdocApp.A,
+// value fromRange is not a member of dimwit.tensor.Tensor2.Axes2Factory[repl.MdocSession.MdocApp.A,
 //   repl.MdocSession.MdocApp.B]
-// val notAVector = Tensor2(Axis[A], Axis[B]).arange(0 until 4)
-//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// val notAVector = Tensor2(Axis[A], Axis[B]).fromRange(0 until 4)
+//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+```scala
+// ERROR: a Range holds integers, so the value type must be an integer type
+val floatRange = Tensor1(Axis[A]).fromRange(0 until 4, VType[Float32])
+// error:
+// Operation only valid for Integer tensors.
+// val floatRange = Tensor1(Axis[A]).fromRange(0 until 4, VType[Float32])
+//                                                                      ^
+```
+
+**Note**: A Scala `Range` only holds integers. There is deliberately no `arange` with a floating-point step,
+because accumulating a step like `0.1f` is imprecise (see the `numpy.arange` docs). Use `linspace` instead.
+
+### Evenly Spaced Values with `linspace`
+
+`linspace` creates a vector of `num` evenly spaced values from `start` to `stop`, like `jnp.linspace`.
+The extent of the axis is `num`, so it is a method on the `Tensor1(Axis[L])` factory.
+As for other computation values (`clip`, `pow`, `learningRate`, ...), `start` and `stop` are `Tensor0`s
+and determine the value type. They may be traced, e.g. `x.min` and `x.max`; only `num` must be static.
+
+```scala
+// 0.0, 0.25, 0.5, 0.75, 1.0
+val spaced = Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 5)
+
+// endpoint = false excludes stop: 0.0, 0.25, 0.5, 0.75
+val halfOpen = Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 4, endpoint = false)
+
+// start > stop counts down: 1.0, 0.5, 0.0
+val descendingSpaced = Tensor1(Axis[A]).linspace(Tensor0(1.0f), Tensor0(0.0f), 3)
+
+// Data-dependent bounds, e.g. histogram bin edges
+val samples = Tensor1(Axis[B]).fromArray(Array(4.0f, 2.0f, 8.0f))
+val binEdges = Tensor1(Axis[A]).linspace(samples.min, samples.max, 4)
+
+// The typed factory fixes the value type; with dimwit.Conversions.given
+// plain literals are converted to Tensor0 of that type
+import dimwit.Conversions.given
+val halfSpaced = Tensor1(Axis[A], VType[Float16]).linspace(0.0f, 1.0f, 5)
+```
+
+```scala
+// ERROR: linspace produces floating point values, so start and stop must be floating
+val intSpaced = Tensor1(Axis[A]).linspace(Tensor0(0), Tensor0(1), 5)
+// error:
+// Operation only valid for Floating tensors.
+// val intSpaced = Tensor1(Axis[A]).linspace(Tensor0(0), Tensor0(1), 5)
+//                                                                    ^
 ```
 
 ### Type Aliases for Common Shapes
@@ -426,10 +474,10 @@ val wrong = t.sum(Axis[C])
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 64 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 71 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 110
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 117
 //
 ```
 
@@ -471,10 +519,10 @@ val wrong = t + 5.0f  // Use +! instead
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 64 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 71 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 119
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 126
 //
 ```
 
@@ -564,19 +612,19 @@ val wrong = m1.dot(Axis[B])(m2)
 // Conflicting definitions:
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 141 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 148 and
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 144
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 151
 // 
 // error: 
 // Conflicting definitions:
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.B, MdocApp1.this.C,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 142 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 149 and
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.C, MdocApp1.this.D,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 145
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 152
 //
 ```
 

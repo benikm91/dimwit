@@ -130,36 +130,78 @@ class TensorCreationSuite extends DimwitTest:
       Tensor2(Axis[A] -> 2, Axis[B] -> 3).eye(VType[Int32]).dtype shouldBe DType.Int32
       Tensor2(Shape2(Axis[A] -> 2, Axis[B] -> 3)).eye(VType[Int16]).dtype shouldBe DType.Int16
 
-  describe("arange"):
+  describe("fromRange"):
 
     it("until: half-open interval"):
-      val result = Tensor1(Axis[A]).arange(0 until 4)
+      val result = Tensor1(Axis[A]).fromRange(0 until 4)
       result.shape shouldEqual Shape1(Axis[A] -> 4)
       result shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 1, 2, 3))
-      Tensor1(Axis[A]).arange(2 until 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4))
+      Tensor1(Axis[A]).fromRange(2 until 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4))
 
     it("to: inclusive interval"):
-      Tensor1(Axis[A]).arange(2 to 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4, 5))
-      Tensor1(Axis[A]).arange(0 to 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
+      Tensor1(Axis[A]).fromRange(2 to 5) shouldEqual Tensor1(Axis[A]).fromArray(Array(2, 3, 4, 5))
+      Tensor1(Axis[A]).fromRange(0 to 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
 
     it("by: stepped and negative steps count down"):
-      Tensor1(Axis[A]).arange(0 until 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
-      Tensor1(Axis[A]).arange(3 until 0 by -1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3, 2, 1))
-      Tensor1(Axis[A]).arange(10 to 0 by -3) shouldEqual Tensor1(Axis[A]).fromArray(Array(10, 7, 4, 1))
+      Tensor1(Axis[A]).fromRange(0 until 7 by 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 3, 6))
+      Tensor1(Axis[A]).fromRange(3 until 0 by -1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3, 2, 1))
+      Tensor1(Axis[A]).fromRange(10 to 0 by -3) shouldEqual Tensor1(Axis[A]).fromArray(Array(10, 7, 4, 1))
 
     it("empty range gives an empty vector"):
-      Tensor1(Axis[A]).arange(0 until 0).shape shouldEqual Shape1(Axis[A] -> 0)
-      Tensor1(Axis[A]).arange(5 until 2).shape shouldEqual Shape1(Axis[A] -> 0)
+      Tensor1(Axis[A]).fromRange(0 until 0).shape shouldEqual Shape1(Axis[A] -> 0)
+      Tensor1(Axis[A]).fromRange(5 until 2).shape shouldEqual Shape1(Axis[A] -> 0)
 
     it("defaults to Int32 and takes the vtype as an argument"):
-      Tensor1(Axis[A]).arange(0 until 3).dtype shouldBe DType.Int32
-      Tensor1(Axis[A]).arange(0 until 3, VType[Int16]).dtype shouldBe DType.Int16
-      Tensor1(Axis[A]).arange(0 until 3, VType[Float32]) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 1.0f, 2.0f))
+      Tensor1(Axis[A]).fromRange(0 until 3).dtype shouldBe DType.Int32
+      Tensor1(Axis[A]).fromRange(0 until 3, VType[Int16]).dtype shouldBe DType.Int16
+      Tensor1(Axis[A]).fromRange(0 until 3, VType[Int16]).asInt32 shouldEqual Tensor1(Axis[A]).fromArray(Array(0, 1, 2))
 
     it("typed factory uses its vtype"):
-      Tensor1(Axis[A], VType[Int16]).arange(0 until 3).dtype shouldBe DType.Int16
-      Tensor1(Axis[A], VType[Float32]).arange(1 until 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f))
+      Tensor1(Axis[A], VType[Int16]).fromRange(0 until 3).dtype shouldBe DType.Int16
+      Tensor1(Axis[A], VType[Int16]).fromRange(1 until 3).asInt32 shouldEqual Tensor1(Axis[A]).fromArray(Array(1, 2))
+
+    it("rejects non-integer vtypes at compile time"):
+      typeCheckErrors("Tensor1(Axis[A]).fromRange(0 until 3, VType[Float32])") should not be empty
+      typeCheckErrors("Tensor1(Axis[A], VType[Float32]).fromRange(0 until 3)") should not be empty
 
     it("can be consumed as gather indices by take"):
       val t = Tensor1(Axis[A]).fromArray(Array(10.0f, 20.0f, 30.0f))
-      t.take(Axis[A])(Tensor1(Axis[B]).arange(0 until 3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))
+      t.take(Axis[A])(Tensor1(Axis[B]).fromRange(0 until 3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))
+
+  describe("linspace"):
+
+    it("num evenly spaced values including the endpoint"):
+      val result = Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 5)
+      result.shape shouldEqual Shape1(Axis[A] -> 5)
+      result shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 0.25f, 0.5f, 0.75f, 1.0f))
+      Tensor1(Axis[A]).linspace(Tensor0(2.0f), Tensor0(3.0f), 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(2.0f, 2.5f, 3.0f))
+
+    it("endpoint = false excludes stop"):
+      Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 4, endpoint = false) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 0.25f, 0.5f, 0.75f))
+
+    it("descending when start > stop"):
+      Tensor1(Axis[A]).linspace(Tensor0(1.0f), Tensor0(0.0f), 3) shouldEqual Tensor1(Axis[A]).fromArray(Array(1.0f, 0.5f, 0.0f))
+
+    it("num = 1 gives start, num = 0 gives an empty vector"):
+      Tensor1(Axis[A]).linspace(Tensor0(3.0f), Tensor0(7.0f), 1) shouldEqual Tensor1(Axis[A]).fromArray(Array(3.0f))
+      Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 0).shape shouldEqual Shape1(Axis[A] -> 0)
+
+    it("value type is that of start and stop"):
+      Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0f), 3).dtype shouldBe DType.Float32
+      Tensor1(Axis[A]).linspace(Tensor0(VType[Float16])(0.0f), Tensor0(VType[Float16])(1.0f), 3).dtype shouldBe DType.Float16
+      withJaxX64Support:
+        Tensor1(Axis[A]).linspace(Tensor0(0.0), Tensor0(1.0), 3).dtype shouldBe DType.Float64
+
+    it("typed factory fixes the value type and accepts converted literals"):
+      import dimwit.Conversions.given
+      Tensor1(Axis[A], VType[Float16]).linspace(0.0f, 1.0f, 3).dtype shouldBe DType.Float16
+      Tensor1(Axis[A], VType[Float32]).linspace(0.0f, 1.0f, 3, endpoint = false) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 1.0f / 3.0f, 2.0f / 3.0f))
+
+    it("start and stop can be data dependent"):
+      val x = Tensor1(Axis[B]).fromArray(Array(4.0f, 2.0f, 8.0f))
+      Tensor1(Axis[A]).linspace(x.min, x.max, 4) shouldEqual Tensor1(Axis[A]).fromArray(Array(2.0f, 4.0f, 6.0f, 8.0f))
+
+    it("rejects non-floating and mixed value types at compile time"):
+      typeCheckErrors("Tensor1(Axis[A]).linspace(Tensor0(0), Tensor0(3), 3)") should not be empty
+      typeCheckErrors("Tensor1(Axis[A], VType[Int32]).linspace(Tensor0(0), Tensor0(3), 3)") should not be empty
+      typeCheckErrors("Tensor1(Axis[A]).linspace(Tensor0(0.0f), Tensor0(1.0), 3)") should not be empty
