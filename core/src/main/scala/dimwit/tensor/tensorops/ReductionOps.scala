@@ -6,8 +6,6 @@ import dimwit.tensor.DType.Int32
 import dimwit.tensor.Label
 import dimwit.tensor.Labels
 import dimwit.tensor.ShapeTypeHelpers.AxesRemover
-import dimwit.tensor.ShapeTypeHelpers.AxisIndex
-import dimwit.tensor.ShapeTypeHelpers.AxisIndices
 import dimwit.tensor.ShapeTypeHelpers.AxisRemover
 import dimwit.tensor.ShapeTypeHelpers.UnwrapAxes
 import dimwit.tensor.Tensor
@@ -40,17 +38,10 @@ object ReductionOps:
     /** argument of the maximum of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
     def argmax[Inputs <: Tuple](axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmax(t.jaxValue, axis = ev.indices.toPythonProxy))
     def argmax[L: Label](axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmax(t.jaxValue, axis = ev.index))
-    def argmax: Tensor0[Int32] = Tensor0(Jax.jnp.argmax(t.jaxValue))
 
     /** argument of the minimum of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
     def argmin[Inputs <: Tuple](axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = ev.indices.toPythonProxy))
     def argmin[L: Label](axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = ev.index))
-    def argmin: Tensor0[Int32] = Tensor0(Jax.jnp.argmin(t.jaxValue))
-
-    /** Returns a tensor of indices that would sort `t` along the specified axes */
-    def argsort[Inputs <: Tuple](axes: Inputs)(using ev: AxisIndices[T, UnwrapAxes[Inputs]]): Tensor[T, Int32] = Tensor(Jax.jnp.argsort(t.jaxValue, axis = ev.indices.toPythonProxy))
-    def argsort[L: Label](axis: Axis[L])(using ev: AxisIndex[T, L]): Tensor[T, Int32] = Tensor(Jax.jnp.argsort(t.jaxValue, axis = ev.index))
-    def argsort: Tensor[T, Int32] = Tensor(Jax.jnp.argsort(t.jaxValue))
 
   // ---------------------------------------------------------
   // IsFloat operations (IsFloat or IsInt)

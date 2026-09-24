@@ -1,5 +1,6 @@
 package dimwit.tensor
 
+import dimwit.jax.Jax
 import dimwit.tensor.HasScalar
 import dimwit.tensor.Label
 import dimwit.tensor.Labels
@@ -33,6 +34,12 @@ object TensorOps:
   trait IsFloating[V] extends IsNumber[V], HasDType[V]:
     def dtype: DType
 
+    /** the largest finite value representable by V. */
+    def maxFinite: Tensor0[V] = Tensor0(Jax.jnp.array(Jax.jnp.finfo(dtype.jaxType).max, dtype = dtype.jaxType))
+
+    /** the smallest (most negative) finite value representable by V. */
+    def minFinite: Tensor0[V] = Tensor0(Jax.jnp.array(Jax.jnp.finfo(dtype.jaxType).min, dtype = dtype.jaxType))
+
   object IsFloating:
     def apply[V](using ev: IsFloating[V]): IsFloating[V] = ev
 
@@ -54,6 +61,7 @@ object TensorOps:
 
   export tensorops.ElementWiseOps.*
   export tensorops.ReductionOps.*
+  export tensorops.AlongAxisOps.*
   export tensorops.ContractionOps.*
   export tensorops.ConvolutionOps.*
   export tensorops.LinearAlgebraOps.*

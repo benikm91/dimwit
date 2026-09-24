@@ -79,9 +79,15 @@ object ShapeTypeHelpers:
   trait AxisReplacer[TensorShape <: Tuple, Axis, AxisReplacement] extends AxisInTensor[TensorShape, Axis]:
     type NewShape <: Tuple
 
-  object AxisReplacer:
+  object AxisReplacer extends AxisReplacerLowPriority:
     type Aux[S <: Tuple, A, AR, O <: Tuple] = AxisReplacer[S, A, AR] { type NewShape = O }
 
+    /** Replacing an axis by itself leaves the shape unchanged; needs only AxisIndex, so it also works for abstract shapes. */
+    given identity[S <: Tuple, A](using idx: AxisIndex[S, A]): AxisReplacer.Aux[S, A, A, S] = new AxisReplacer[S, A, A]:
+      def index: Int = idx.index
+      type NewShape = S
+
+  trait AxisReplacerLowPriority:
     given bridge[S <: Tuple, A, AR, O <: Tuple](using
         idx: AxisIndex[S, A],
         replacer: Replacer.Aux[S, A, AR, O]

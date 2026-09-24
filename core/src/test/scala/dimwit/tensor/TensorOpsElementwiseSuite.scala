@@ -31,6 +31,15 @@ class TensorOpsElementwiseSuite extends DimwitTest:
     it("abs"):
       t2.abs should approxEqual(Tensor.like(t2).fromArray(Array(1.0f, 0.0f, 1.0f, 4.0f)))
 
+    it("relu"):
+      t2.relu should approxEqual(Tensor.like(t2).fromArray(Array(0.0f, 0.0f, 1.0f, 4.0f)))
+
+    it("sigmoid"):
+      t2.sigmoid should approxEqual(Tensor.like(t2).fromArray(Array(0.26894143f, 0.5f, 0.7310586f, 0.98201376f)), tolerance = 1e-5f)
+
+    it("gelu"):
+      t2.gelu should approxEqual(Tensor.like(t2).fromArray(Array(-0.15880796f, 0.0f, 0.841192f, 3.9999299f)), tolerance = 1e-5f)
+
     it("sign"):
       t2.sign should approxEqual(Tensor.like(t2).fromArray(Array(-1.0f, 0.0f, 1.0f, 1.0f)))
 
@@ -53,6 +62,49 @@ class TensorOpsElementwiseSuite extends DimwitTest:
       tZero.cos should approxEqual(Tensor.like(t2).fill(1f))
       tZero.tanh should approxEqual(tZero)
 
+    it("arcsin/arccos/arctan"):
+      Tensor.like(t2).fill(0.5f).arcsin should approxEqual(Tensor.like(t2).fill((math.Pi / 6).toFloat), tolerance = 1e-5f)
+      Tensor.like(t2).fill(0.5f).arccos should approxEqual(Tensor.like(t2).fill((math.Pi / 3).toFloat), tolerance = 1e-5f)
+      Tensor.like(t2).fill(1.0f).arctan should approxEqual(Tensor.like(t2).fill((math.Pi / 4).toFloat), tolerance = 1e-5f)
+
+    it("floor/ceil/round"):
+      val t = Tensor.like(t2).fromArray(Array(-1.5f, 0.4f, 1.5f, 2.6f))
+      t.floor should approxEqual(Tensor.like(t2).fromArray(Array(-2.0f, 0.0f, 1.0f, 2.0f)))
+      t.ceil should approxEqual(Tensor.like(t2).fromArray(Array(-1.0f, 1.0f, 2.0f, 3.0f)))
+      t.round should approxEqual(Tensor.like(t2).fromArray(Array(-2.0f, 0.0f, 2.0f, 3.0f)))
+
+    it("isnan/isfinite"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, 1.0f, 0.0f))
+      t.isnan shouldEqual Tensor.like(b2).fromArray(Array(true, false, false, false))
+      t.isfinite shouldEqual Tensor.like(b2).fromArray(Array(false, false, true, true))
+
+    it("nanToNum"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
+      t.nanToNum(Tensor0(0f)) shouldEqual Tensor.like(t2).fromArray(Array(0.0f, Float.MaxValue, -Float.MaxValue, 1.0f))
+
+    it("maxFinite/minFinite of the floating type"):
+      IsFloating[Float32].maxFinite shouldEqual Tensor0(Float.MaxValue)
+      IsFloating[Float32].minFinite shouldEqual Tensor0(-Float.MaxValue)
+      IsFloating[Float64].maxFinite shouldEqual Tensor0(Double.MaxValue)
+
+    it("nanToNum with replacement values"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
+      t.nanToNum(nan = Tensor0(-1.0f), posInf = Tensor0(100.0f), negInf = Tensor0(-100.0f)) shouldEqual
+        Tensor.like(t2).fromArray(Array(-1.0f, 100.0f, -100.0f, 1.0f))
+
+    it("nanToNum with only some replacement values"):
+      val t = Tensor.like(t2).fromArray(Array(Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity, 1.0f))
+      t.nanToNum(nan = Tensor0(0f), posInf = Tensor0(100.0f)) shouldEqual Tensor.like(t2).fromArray(Array(0.0f, 100.0f, -Float.MaxValue, 1.0f))
+
+    it("mod"):
+      val t = Tensor.like(t2).fromArray(Array(-7.0f, 7.0f, -7.0f, 7.0f))
+      val divisor = Tensor.like(t2).fromArray(Array(3.0f, 3.0f, -3.0f, -3.0f))
+      (t % divisor) should approxEqual(Tensor.like(t2).fromArray(Array(2.0f, 1.0f, -1.0f, -2.0f)))
+
+    it("mod broadcasting (%!)"):
+      val t = Tensor1(Axis[A]).fromArray(Array(-7.0f, 7.0f))
+      (t %! Tensor0(3.0f)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(2.0f, 1.0f)))
+
     it("clip"):
       t2.clip(0.0f, 2.0f) should approxEqual(Tensor.like(t2).fromArray(Array(0.0f, 0.0f, 1.0f, 2.0f)))
 
@@ -74,6 +126,11 @@ class TensorOpsElementwiseSuite extends DimwitTest:
 
     it("pow"):
       i2.pow(Tensor0(3)) shouldEqual Tensor.like(i2).fromArray(Array(-1, 0, 1, 8))
+
+    it("mod"):
+      val t = Tensor.like(i2).fromArray(Array(-7, 7, -7, 7))
+      val divisor = Tensor.like(i2).fromArray(Array(3, 3, -3, -3))
+      (t % divisor) shouldEqual Tensor.like(i2).fromArray(Array(2, 1, -1, -2))
 
     it("clip"):
       i2.clip(0, 1) shouldEqual Tensor.like(i2).fromArray(Array(0, 0, 1, 1))

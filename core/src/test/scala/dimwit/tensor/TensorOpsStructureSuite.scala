@@ -570,14 +570,14 @@ class TensorOpsStructureSuite extends DimwitTest:
     describe("roll"):
       it("tensor1"):
         val t1 = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
-        t1.roll(shift = 1) shouldEqual (Tensor1(Axis[A]).fromArray(Array(3.0f, 1.0f, 2.0f)))
-        t1.roll(shift = 2) shouldEqual (Tensor1(Axis[A]).fromArray(Array(2.0f, 3.0f, 1.0f)))
-        t1.roll(shift = 3) shouldEqual (t1)
+        t1.roll(Axis[A], shift = 1) shouldEqual (Tensor1(Axis[A]).fromArray(Array(3.0f, 1.0f, 2.0f)))
+        t1.roll(Axis[A], shift = 2) shouldEqual (Tensor1(Axis[A]).fromArray(Array(2.0f, 3.0f, 1.0f)))
+        t1.roll(Axis[A], shift = 3) shouldEqual (t1)
 
       it("tensor2"):
         val t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f, 3.0f), Array(4.0f, 5.0f, 6.0f)))
-        t.vapply(Axis[B])(_.roll(shift = 1)) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(3.0f, 1.0f, 2.0f), Array(6.0f, 4.0f, 5.0f))))
-        t.vapply(Axis[A])(_.roll(shift = 1)) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(4.0f, 5.0f, 6.0f), Array(1.0f, 2.0f, 3.0f))))
+        t.roll(Axis[B], shift = 1) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(3.0f, 1.0f, 2.0f), Array(6.0f, 4.0f, 5.0f))))
+        t.roll(Axis[A], shift = 1) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(4.0f, 5.0f, 6.0f), Array(1.0f, 2.0f, 3.0f))))
 
   describe("chunk function"):
 

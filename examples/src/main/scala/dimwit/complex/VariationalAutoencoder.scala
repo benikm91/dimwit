@@ -4,8 +4,6 @@ import dimwit.Conversions.given
 import dimwit.*
 import dimwit.tensortree.TreeOf.*
 import dimwit.autodiff.*
-import dimwit.nn.ActivationFunctions.relu
-import dimwit.nn.ActivationFunctions.sigmoid
 import dimwit.optimizer.GradientDescent
 import dimwit.python.PyBridge.toPyTensor
 import dimwit.random.Random
@@ -64,8 +62,8 @@ class Encoder(p: Encoder.Params):
   val logVarLayer = LinearLayer(p.logVarLayer)
 
   def apply(v: Tensor1[Pixel, Float32]): (Tensor1[Latent, Float32], Tensor1[Latent, Float32]) =
-    val h1 = relu(layer1(v))
-    val h2 = relu(layer2(h1))
+    val h1 = layer1(v).relu
+    val h2 = layer2(h1).relu
     val mean = meanLayer(h2)
     val logVar = logVarLayer(h2).clip(-10f, 10f)
     (mean, logVar)
@@ -85,9 +83,9 @@ class Decoder(p: Decoder.Params):
   val outputLayer = LinearLayer(p.outputLayer)
 
   def apply(v: Tensor1[Latent, Float32]): Tensor1[ReconstructedPixel, Float32] =
-    val h1 = relu(layer1(v))
-    val h2 = relu(layer2(h1))
-    sigmoid(outputLayer(h2))
+    val h1 = layer1(v).relu
+    val h2 = layer2(h1).relu
+    outputLayer(h2).sigmoid
 
 object Decoder:
   case class Params(
