@@ -191,7 +191,7 @@ object ElementWiseOps:
     def isfinite: Tensor[T, Bool] = Tensor(Jax.jnp.isfinite(t.jaxValue))
 
     /** replaces NaN by `nan`, +inf by `posInf` and -inf by `negInf`.
-      * By default, NaN becomes 0 and ±inf become the largest/smallest finite value of the dtype.
+      * By default, ±inf become the largest/smallest finite value of the dtype.
       */
     def nanToNum(using
         IsFloating[V]
