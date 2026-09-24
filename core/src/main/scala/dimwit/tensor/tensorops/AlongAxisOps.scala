@@ -30,12 +30,10 @@ object AlongAxisOps:
     def argsort[Inputs <: Tuple](axes: Inputs)(using ev: AxisIndices[T, UnwrapAxes[Inputs]]): Tensor[T, Int32] = Tensor(Jax.jnp.argsort(t.jaxValue, axis = ev.indices.toPythonProxy))
     def argsort[L: Label](axis: Axis[L])(using AxisIndex[T, L]): Tensor[T, Int32] =
       t.vapply(axis)(Tensor1.argsort)
-    def argsort: Tensor[T, Int32] = Tensor(Jax.jnp.argsort(t.jaxValue))
 
     /** sorts the tensor `t` along the specified axis */
     def sort[L: Label](axis: Axis[L])(using AxisIndex[T, L]): Tensor[T, V] =
       t.vapply(axis)(Tensor1.sort)
-    def sort: Tensor[T, V] = Tensor(Jax.jnp.sort(t.jaxValue))
 
     /** computes the cumulative sum of the tensor `t` along the specified axis. */
     def cumsum[L: Label](axis: Axis[L])(using AxisIndex[T, L]): Tensor[T, V] =

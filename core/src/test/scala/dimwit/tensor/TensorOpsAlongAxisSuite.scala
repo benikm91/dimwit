@@ -26,15 +26,8 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
 
   describe("Along Axis Ops"):
     it("argsort"):
-      t2.argsort shouldEqual Tensor2(
-        Axis[A],
-        Axis[B]
-      ).fromArray(
-        Array(
-          Array(0, 1, 2),
-          Array(0, 1, 2)
-        )
-      )
+      // JAX default to last axis is not supported.
+      "t2.argsort" shouldNot compile
 
     it("argsort axis A"):
       val res = t2.argsort(axis = Axis[A])
@@ -67,15 +60,8 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
           Array(6.0f, 5.0f, 4.0f)
         )
       )
-      descendingAlongB.sort shouldEqual Tensor2(
-        Axis[A],
-        Axis[B]
-      ).fromArray(
-        Array(
-          Array(1.0f, 2.0f, 3.0f),
-          Array(4.0f, 5.0f, 6.0f)
-        )
-      )
+      // JAX default to last axis is not supported
+      "descendingAlongB.sort" shouldNot compile
 
     it("sort axis A"):
       val descendingAlongA = Tensor2(Axis[A], Axis[B]).fromArray(

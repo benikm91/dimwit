@@ -38,12 +38,10 @@ object ReductionOps:
     /** argument of the maximum of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
     def argmax[Inputs <: Tuple](axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmax(t.jaxValue, axis = ev.indices.toPythonProxy))
     def argmax[L: Label](axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmax(t.jaxValue, axis = ev.index))
-    def argmax: Tensor0[Int32] = Tensor0(Jax.jnp.argmax(t.jaxValue))
 
     /** argument of the minimum of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
     def argmin[Inputs <: Tuple](axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = ev.indices.toPythonProxy))
     def argmin[L: Label](axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, Int32] = Tensor(Jax.jnp.argmin(t.jaxValue, axis = ev.index))
-    def argmin: Tensor0[Int32] = Tensor0(Jax.jnp.argmin(t.jaxValue))
 
   // ---------------------------------------------------------
   // IsFloat operations (IsFloat or IsInt)
