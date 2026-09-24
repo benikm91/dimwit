@@ -112,8 +112,8 @@ class TensorOpsReductionSuite extends DimwitTest:
       res should approxEqual(Tensor.like(res).fromArray(Array(1.0f, 4.0f)))
 
     it("argmax"):
-      // JAX default to flatten tensor for argmax without axis is not supported.
-      "t2.argmax" shouldNot compile
+      withClue("JAX default to flatten tensor for argmax without axis is not supported."):
+        "t2.argmax" shouldNot compile
 
     it("argmax axis A"):
       val res = t2.argmax(axis = Axis[A])
@@ -124,8 +124,8 @@ class TensorOpsReductionSuite extends DimwitTest:
       res shouldEqual Tensor.like(res).fromArray(Array(2, 2))
 
     it("argmin"):
-      // JAX default to flatten tensor for argmin without axis is not supported.
-      "t2.argmin" shouldNot compile
+      withClue("JAX default to flatten tensor for argmin without axis is not supported."):
+        "t2.argmin" shouldNot compile
 
     it("argmin axis A"):
       val res = t2.argmin(axis = Axis[A])

@@ -26,8 +26,8 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
 
   describe("Along Axis Ops"):
     it("argsort"):
-      // JAX default to last axis is not supported.
-      "t2.argsort" shouldNot compile
+      withClue("JAX default to last axis is not supported."):
+        "t2.argsort" shouldNot compile
 
     it("argsort axis A"):
       val res = t2.argsort(axis = Axis[A])
@@ -60,8 +60,8 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
           Array(6.0f, 5.0f, 4.0f)
         )
       )
-      // JAX default to last axis is not supported
-      "descendingAlongB.sort" shouldNot compile
+      withClue("JAX default to last axis is not supported."):
+        "descendingAlongB.sort" shouldNot compile
 
     it("sort axis A"):
       val descendingAlongA = Tensor2(Axis[A], Axis[B]).fromArray(
@@ -100,6 +100,10 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
       )
 
     it("cumsum"):
+      withClue("JAX default to flatten tensor for cumsum without axis is not supported."):
+        "t2.cumsum" shouldNot compile
+
+    it("cumsum axis B"):
       val res = t2.cumsum(axis = Axis[B])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 3.0f, 6.0f, 4.0f, 9.0f, 15.0f))
 
@@ -108,8 +112,16 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 2.0f, 3.0f, 5.0f, 7.0f, 9.0f))
 
     it("cumprod"):
+      withClue("JAX default to flatten tensor for cumprod without axis is not supported."):
+        "t2.cumprod" shouldNot compile
+
+    it("cumprod axis B"):
       val res = t2.cumprod(axis = Axis[B])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 2.0f, 6.0f, 4.0f, 20.0f, 120.0f))
+
+    it("diff"):
+      withClue("JAX default to last axis is not supported."):
+        "t2.diff" shouldNot compile
 
     it("diff axis B"):
       val res = t2.diff(axis = Axis[B])
@@ -119,6 +131,10 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
       val res = t2.diff(axis = Axis[A])
       res shouldEqual Tensor.like(res).fromArray(Array(3.0f, 3.0f, 3.0f))
 
+    it("cummax"):
+      withClue("JAX default to first axis is not supported."):
+        "unsorted.cummax" shouldNot compile
+
     it("cummax axis B"):
       val res = unsorted.cummax(axis = Axis[B])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 3.0f, 3.0f, 4.0f, 4.0f, 6.0f))
@@ -127,6 +143,10 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
       val res = unsorted.cummax(axis = Axis[A])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 3.0f, 2.0f, 4.0f, 3.0f, 6.0f))
 
+    it("cummin"):
+      withClue("JAX default to first axis is not supported."):
+        "unsorted.cummin" shouldNot compile
+
     it("cummin axis B"):
       val res = unsorted.cummin(axis = Axis[B])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 1.0f, 1.0f, 4.0f, 0.0f, 0.0f))
@@ -134,6 +154,10 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
     it("cummin axis A"):
       val res = unsorted.cummin(axis = Axis[A])
       res shouldEqual Tensor.like(res).fromArray(Array(1.0f, 3.0f, 2.0f, 1.0f, 0.0f, 2.0f))
+
+    it("logcumsumexp"):
+      withClue("JAX default to first axis is not supported."):
+        "unsorted.logcumsumexp" shouldNot compile
 
     it("logcumsumexp axis B"):
       unsorted.logcumsumexp(axis = Axis[B]) should approxEqual(unsorted.exp.cumsum(Axis[B]).log, 1e-5f)
@@ -144,6 +168,10 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
     it("Tensor1 functions lift with vapply"):
       unsorted.vapply(Axis[B])(Tensor1.cummax) shouldEqual unsorted.cummax(Axis[B])
 
+    it("softmax"):
+      withClue("JAX default to last axis is not supported."):
+        "unsorted.softmax" shouldNot compile
+
     it("softmax axis B"):
       val res = unsorted.softmax(axis = Axis[B])
       res.sum(Axis[B]) should approxEqual(Tensor.like(res.sum(Axis[B])).fill(1.0f), 1e-5f)
@@ -153,8 +181,16 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
       val res = unsorted.softmax(axis = Axis[A])
       res should approxEqual(unsorted.exp /! unsorted.exp.sum(Axis[A]), 1e-5f)
 
+    it("logSoftmax"):
+      withClue("JAX default to last axis is not supported."):
+        "unsorted.logSoftmax" shouldNot compile
+
     it("logSoftmax axis B"):
       unsorted.logSoftmax(axis = Axis[B]) should approxEqual(unsorted.softmax(Axis[B]).log, 1e-5f)
+
+    it("roll"):
+      withClue("JAX default to flatten tensor for roll without axis is not supported."):
+        "unsorted.roll(shift = 1)" shouldNot compile
 
     it("roll with Tensor1.roll through vapply"):
       unsorted.vapply(Axis[B])(Tensor1.roll(1)) shouldEqual unsorted.roll(Axis[B], shift = 1)
