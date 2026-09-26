@@ -9,8 +9,8 @@ import dimwit.tensor.Tensor
 import dimwit.tensor.Tensor0
 import dimwit.tensor.Tensor1
 import dimwit.tensor.Tensor2
-import dimwit.tensor.TensorOps.IsFloating
-import dimwit.tensor.TensorOps.IsNumber
+import dimwit.tensor.ValueTypeClasses.IsFloating
+import dimwit.tensor.ValueTypeClasses.IsNumber
 import me.shadaj.scalapy.py
 
 /**  Common linear algebra operations.

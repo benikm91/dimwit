@@ -6,7 +6,7 @@ import dimwit.jax.Jax
 import dimwit.prime.PrimeConcat
 import dimwit.tensor.Tensor
 import dimwit.tensor.Tensor0
-import dimwit.tensor.TensorOps.IsFloating
+import dimwit.tensor.ValueTypeClasses.IsFloating
 import dimwit.tensortree.TensorTree
 import me.shadaj.scalapy.py
 

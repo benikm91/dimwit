@@ -116,6 +116,10 @@ class TensorOpsElementwiseSuite extends DimwitTest:
       t2.approxEquals(t2Near).item shouldBe true
       t2.approxElementEquals(t2Near).all.item shouldBe true
 
+    it("approxElementEquals is elementwise"):
+      val t2Partial = Tensor.like(t2).fromArray(Array(-1.0f, 0.5f, 1.0f, 4.0f))
+      t2.approxElementEquals(t2Partial) shouldEqual Tensor.like(b2).fromArray(Array(true, false, true, true))
+
   describe("Int ops (Tensor2)"):
 
     it("abs"):
@@ -205,3 +209,41 @@ class TensorOpsElementwiseSuite extends DimwitTest:
       f2.asBool shouldEqual Tensor(f2.shape).fromArray(Array(true, false, true, true))
       f2.asInt32 shouldEqual Tensor(f2.shape).fromArray(Array(-1, 0, 0, 2))
       f2.asFloat32 shouldEqual f2
+
+  describe("Function forms (Tensor.op(t) is t.op)"):
+
+    // values in (0, 1), so that log, sqrt, arcsin and arccos are defined
+    val p2 = Tensor.like(t2).fromArray(Array(0.1f, 0.2f, 0.3f, 0.4f))
+
+    it("numeric ops"):
+      Tensor.abs(t2) shouldEqual t2.abs
+      Tensor.sign(t2) shouldEqual t2.sign
+      Tensor.clip(t2, Tensor0(0.0f), Tensor0(1.0f)) shouldEqual t2.clip(Tensor0(0.0f), Tensor0(1.0f))
+      Tensor.pow(t2, Tensor0(2.0f)) shouldEqual t2.pow(Tensor0(2.0f))
+      Tensor.abs(i2) shouldEqual i2.abs
+
+    it("floating ops"):
+      Tensor.sqrt(p2) shouldEqual p2.sqrt
+      Tensor.exp(p2) shouldEqual p2.exp
+      Tensor.log(p2) shouldEqual p2.log
+      Tensor.sin(p2) shouldEqual p2.sin
+      Tensor.cos(p2) shouldEqual p2.cos
+      Tensor.tanh(p2) shouldEqual p2.tanh
+      Tensor.arcsin(p2) shouldEqual p2.arcsin
+      Tensor.arccos(p2) shouldEqual p2.arccos
+      Tensor.arctan(p2) shouldEqual p2.arctan
+      Tensor.floor(t2) shouldEqual t2.floor
+      Tensor.ceil(t2) shouldEqual t2.ceil
+      Tensor.round(t2) shouldEqual t2.round
+      Tensor.isnan(t2) shouldEqual t2.isnan
+      Tensor.isfinite(t2) shouldEqual t2.isfinite
+      Tensor.nanToNum(t2)(Tensor0(0.0f)) shouldEqual t2.nanToNum(Tensor0(0.0f))
+
+    it("activation functions"):
+      Tensor.sigmoid(t2) shouldEqual t2.sigmoid
+      Tensor.relu(t2) shouldEqual t2.relu
+      Tensor.gelu(t2) shouldEqual t2.gelu
+
+    it("boolean ops"):
+      Tensor.all(b2) shouldEqual b2.all
+      Tensor.any(b2) shouldEqual b2.any

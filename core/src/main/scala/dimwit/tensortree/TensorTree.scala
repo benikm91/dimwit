@@ -106,28 +106,22 @@ object TensorTree: // extends TensorTreeLowPriority:
     */
   given tensor[Q <: Tuple, V](using n: Labels[Q]): TensorTree[Tensor[Q, V]] with
     def map(t: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> (Tensor[T, V2] => Tensor[T, V2])): Tensor[Q, V] =
-      import TensorOps.retag
-      f[Q, V](using n)(t.retag[Q](using n))
+      f[Q, V](using n)(t)
 
     def mapWithName(t: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> ((String, Tensor[T, V2]) => Tensor[T, V2]), path: String = ""): Tensor[Q, V] =
-      import TensorOps.retag
-      f[Q, V](using n)(path, t.retag[Q](using n))
+      f[Q, V](using n)(path, t)
 
     def mapLeaves[A](t: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> (Tensor[T, V2] => A)): Iterator[A] =
-      import TensorOps.retag
-      Iterator(f[Q, V](using n)(t.retag[Q](using n)))
+      Iterator(f[Q, V](using n)(t))
 
     def foreach(t: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> (Tensor[T, V2] => Unit)): Unit =
-      import TensorOps.retag
-      f[Q, V](using n)(t.retag[Q](using n))
+      f[Q, V](using n)(t)
 
     def foreachWithName(t: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> ((String, Tensor[T, V2]) => Unit), path: String = ""): Unit =
-      import TensorOps.retag
-      f[Q, V](using n)(path, t.retag[Q](using n))
+      f[Q, V](using n)(path, t)
 
     def zipMap(p1: Tensor[Q, V], p2: Tensor[Q, V], f: [T <: Tuple, V2] => (Labels[T]) ?=> ((Tensor[T, V2], Tensor[T, V2]) => Tensor[T, V2])): Tensor[Q, V] =
-      import TensorOps.retag
-      f[Q, V](using n)(p1.retag[Q](using n), p2.retag[Q](using n))
+      f[Q, V](using n)(p1, p2)
 
     def toPyTree(p: Tensor[Q, V]): Jax.PyAny = p.jaxValue
     def fromPyTree(pyVal: Jax.PyAny): Tensor[Q, V] = Tensor(pyVal.as[Jax.PyDynamic])

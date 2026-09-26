@@ -21,7 +21,8 @@ import me.shadaj.scalapy.readwrite.Writer
 import scala.NamedTuple.NamedTuple
 import scala.annotation.implicitNotFound
 
-object FunctionalOps:
+/** Functional operations on tensors, e.g. `Tensor.zipvmap`, and the type classes they need. */
+private[dimwit] object FunctionalOps:
 
   /** Prepends the axis `L` to every tensor of the tensor tree `FOut`: the result
     * type of a `vmap`/`zipvmap` whose body returned `FOut`.
@@ -119,6 +120,12 @@ object FunctionalOps:
 
       fromPyTree.fromPyTree(jaxResult)
   export ZipVmap.zipvmap
+
+/** Extension methods for functional operations, e.g. `t.vmap(Axis[A])(f)`. */
+private[dimwit] object FunctionalExtensions:
+
+  import FunctionalOps.PrependAxis
+  import FunctionalOps.ZipVmap
 
   extension [T <: Tuple: Labels, V](t: Tensor[T, V])
 

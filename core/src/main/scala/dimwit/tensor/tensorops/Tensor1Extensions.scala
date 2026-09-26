@@ -13,7 +13,7 @@ import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer
 
-object Tensor1Ops:
+private[dimwit] object Tensor1Extensions:
 
   extension [L, V](t: Tensor1[L, V])
 

@@ -68,14 +68,14 @@ class TensorOpsReductionSuite extends DimwitTest:
       res should approxEqual(Tensor.like(res).fromArray(Array(0.8164966f, 0.8164966f)))
 
     it("quantile"):
-      t2.quantile(0.5f) shouldEqual Tensor0(3.5f)
+      t2.quantile(Tensor0(0.5f)) shouldEqual Tensor0(3.5f)
 
     it("quantile axis A"):
-      val res = t2.quantile(0.25f, axis = Axis[A])
+      val res = t2.quantile(Tensor0(0.25f), axis = Axis[A])
       res should approxEqual(Tensor.like(res).fromArray(Array(1.75f, 2.75f, 3.75f)))
 
     it("quantile axis B"):
-      val res = t2.quantile(0.25f, axis = Axis[B])
+      val res = t2.quantile(Tensor0(0.25f), axis = Axis[B])
       res should approxEqual(Tensor.like(res).fromArray(Array(1.5f, 4.5f)))
 
     it("median"):
@@ -152,3 +152,26 @@ class TensorOpsReductionSuite extends DimwitTest:
       t2.approxEquals(t2Near).item shouldBe true
       val t2Far = t2 *! Tensor0(1.1f)
       t2.approxEquals(t2Far).item shouldBe false
+      Tensor.approxEquals(t2, t2Near) shouldEqual t2.approxEquals(t2Near)
+
+  describe("Function forms (Tensor.op(t, ...) is t.op(...))"):
+    it("numeric reductions"):
+      Tensor.sum(t2) shouldEqual t2.sum
+      Tensor.sum(t2, Axis[A]) shouldEqual t2.sum(Axis[A])
+      Tensor.sum(t2, (Axis[A], Axis[B])) shouldEqual t2.sum((Axis[A], Axis[B]))
+      Tensor.max(t2) shouldEqual t2.max
+      Tensor.max(t2, Axis[B]) shouldEqual t2.max(Axis[B])
+      Tensor.min(t2) shouldEqual t2.min
+      Tensor.min(t2, Axis[B]) shouldEqual t2.min(Axis[B])
+      Tensor.argmax(t2, Axis[B]) shouldEqual t2.argmax(Axis[B])
+      Tensor.argmin(t2, Axis[B]) shouldEqual t2.argmin(Axis[B])
+
+    it("floating reductions"):
+      Tensor.mean(t2) shouldEqual t2.mean
+      Tensor.mean(t2, Axis[A]) shouldEqual t2.mean(Axis[A])
+      Tensor.std(t2, Axis[B]) shouldEqual t2.std(Axis[B])
+      Tensor.quantile(t2, Tensor0(0.5f)) shouldEqual t2.quantile(Tensor0(0.5f))
+      Tensor.quantile(t2, Tensor0(0.5f), Axis[B]) shouldEqual t2.quantile(Tensor0(0.5f), Axis[B])
+      Tensor.median(t2, Axis[B]) shouldEqual t2.median(Axis[B])
+      Tensor.nanmean(t2, Axis[B]) shouldEqual t2.nanmean(Axis[B])
+      Tensor.nanmedian(t2, Axis[B]) shouldEqual t2.nanmedian(Axis[B])
