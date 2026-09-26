@@ -3,7 +3,7 @@ package dimwit.tensor.tensorops
 import dimwit.tensor.HasScalar
 import dimwit.tensor.Tensor3
 
-object Tensor3Ops:
+private[dimwit] object Tensor3Extensions:
 
   extension [L1, L2, L3, V, X](t: Tensor3[L1, L2, L3, V])(using ev: HasScalar[V, X])
     /** Converts a Tensor3 to a nested Scala Array (Array of Arrays of Arrays).

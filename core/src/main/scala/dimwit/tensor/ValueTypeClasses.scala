@@ -1,18 +1,11 @@
 package dimwit.tensor
 
 import dimwit.jax.Jax
-import dimwit.tensor.HasScalar
-import dimwit.tensor.Label
-import dimwit.tensor.Labels
-import dimwit.tensor.ShapeTypeHelpers.*
-import dimwit.tensor.TupleHelpers.*
 
 import scala.annotation.implicitNotFound
-import scala.annotation.targetName
 
-object TensorOps:
-
-  import dimwit.tensor.tensorops.TensorOpsUtil.*
+/** Type classes on the value type `V` of a `Tensor[T, V]`, e.g. `IsFloating[V]` for floating point tensors. */
+object ValueTypeClasses:
 
   /** Typeclass to map a type V to its corresponding DType.
     */
@@ -58,17 +51,3 @@ object TensorOps:
 
   object IsBoolean:
     def apply[V](using ev: IsBoolean[V]): IsBoolean[V] = ev
-
-  export tensorops.ElementWiseOps.*
-  export tensorops.ReductionOps.*
-  export tensorops.AlongAxisOps.*
-  export tensorops.ContractionOps.*
-  export tensorops.ConvolutionOps.*
-  export tensorops.LinearAlgebraOps.*
-  export tensorops.StructuralOps.*
-  export tensorops.FunctionalOps.*
-
-  export tensorops.Tensor0Ops.*
-  export tensorops.Tensor1Ops.*
-  export tensorops.Tensor2Ops.*
-  export tensorops.Tensor3Ops.*

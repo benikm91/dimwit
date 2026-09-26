@@ -95,3 +95,12 @@ class TensorOpsContractionSuite extends DimwitTest:
           )
         )
       )
+
+  describe("Function forms (Tensor.op(t1, ..., t2) is t1.op(...)(t2))"):
+    it("dot"):
+      Tensor.dot(v1, Axis[A], v2) shouldEqual v1.dot(Axis[A])(v2)
+      Tensor.dot(m1, Axis[A], m2) shouldEqual m1.dot(Axis[A])(m2)
+      Tensor.dot(m1, (Axis[B], Axis[A]), m2) shouldEqual m1.dot((Axis[B], Axis[A]))(m2)
+
+    it("outerProduct"):
+      Tensor.outerProduct(v1, v2) shouldEqual v1.outerProduct(v2)

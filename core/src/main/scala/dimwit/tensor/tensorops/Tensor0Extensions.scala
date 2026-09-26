@@ -3,7 +3,7 @@ package dimwit.tensor.tensorops
 import dimwit.tensor.DType.*
 import dimwit.tensor.Tensor0
 
-object Tensor0Ops:
+private[dimwit] object Tensor0Extensions:
 
   private inline def checkTracer[V, R](scalar: Tensor0[V]): Unit =
     require(

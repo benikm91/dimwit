@@ -194,3 +194,19 @@ class TensorOpsAlongAxisSuite extends DimwitTest:
 
     it("roll with Tensor1.roll through vapply"):
       unsorted.vapply(Axis[B])(Tensor1.roll(1)) shouldEqual unsorted.roll(Axis[B], shift = 1)
+
+  describe("Function forms (Tensor.op(t, axis) is t.op(axis))"):
+    it("numeric ops"):
+      Tensor.argsort(unsorted, Axis[B]) shouldEqual unsorted.argsort(Axis[B])
+      Tensor.sort(unsorted, Axis[A]) shouldEqual unsorted.sort(Axis[A])
+      Tensor.cumsum(unsorted, Axis[B]) shouldEqual unsorted.cumsum(Axis[B])
+      Tensor.cumprod(unsorted, Axis[B]) shouldEqual unsorted.cumprod(Axis[B])
+      Tensor.cummax(unsorted, Axis[B]) shouldEqual unsorted.cummax(Axis[B])
+      Tensor.cummin(unsorted, Axis[A]) shouldEqual unsorted.cummin(Axis[A])
+      Tensor.diff(unsorted, Axis[B]) shouldEqual unsorted.diff(Axis[B])
+      Tensor.roll(unsorted, Axis[B], shift = 1) shouldEqual unsorted.roll(Axis[B], shift = 1)
+
+    it("floating ops"):
+      Tensor.logcumsumexp(unsorted, Axis[B]) shouldEqual unsorted.logcumsumexp(Axis[B])
+      Tensor.softmax(unsorted, Axis[B]) shouldEqual unsorted.softmax(Axis[B])
+      Tensor.logSoftmax(unsorted, Axis[A]) shouldEqual unsorted.logSoftmax(Axis[A])

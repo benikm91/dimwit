@@ -34,7 +34,7 @@ import dimwit.tensor.TensorEvidence.CheckValid
 import dimwit.tensor.TensorEvidence.ComputeMissing
 import dimwit.tensor.TensorEvidence.IsPermutation
 import dimwit.tensor.TensorEvidence.ValidationResult
-import dimwit.tensor.tensorops.TensorOpsUtil.Broadcast3
+import dimwit.tensor.Broadcast3
 import dimwit.|+|
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
@@ -44,7 +44,8 @@ import me.shadaj.scalapy.readwrite.Writer
 import scala.annotation.implicitNotFound
 import scala.util.NotGiven
 
-object StructuralOps:
+/** Structural operations on tensors, e.g. `Tensor.stack` or `Tensor.concatenate`, and the type classes they need. */
+private[dimwit] object StructuralOps:
 
   /** Inserts axis `New` directly after axis `Anchor`. */
   trait AxisInserter[T <: Tuple, Anchor, New]:
@@ -93,7 +94,7 @@ object StructuralOps:
         tail: AxisSwapper.Aux[T, L1, L2, O]
     ): AxisSwapper.Aux[H *: T, L1, L2, H *: O] = AxisSwapper.instance
 
-  private object Util:
+  private[dimwit] object Util:
 
     type ExtractLabel[X] = X match
       case AxisAtIndex[l]           => l
@@ -152,6 +153,8 @@ object StructuralOps:
         ifTrue: Tensor[T, V],
         ifFalse: Tensor[T, V]
     ): Tensor[T, V] =
+      ElementWiseOps.requireSameShape(condition, ifTrue)
+      ElementWiseOps.requireSameShape(ifTrue, ifFalse)
       Tensor(Jax.jnp.where(condition.jaxValue, ifTrue.jaxValue, ifFalse.jaxValue))
 
     /** Like [[where]], but broadcasts condition, `ifTrue` and `ifFalse` to their common shape,
@@ -358,6 +361,12 @@ object StructuralOps:
             val names = newNames
           val headTensor = Tensor[NewShape, V](currentArr)(using newLabelsWitness)
           headTensor *: tailMaker(arrays.tail, compLabels.tail, originalLabels, splitIndex)
+
+/** Extension methods for structural operations, e.g. `t.transpose`, `t.slice(...)` or `t.rearrange(...)`. */
+private[dimwit] object StructuralExtensions:
+
+  import StructuralOps.*
+  import StructuralOps.Util.*
 
   extension [T <: Tuple, V](tensor: Tensor[T, V])
 
@@ -861,9 +870,6 @@ object StructuralOps:
         ev: AxisReplacer[T, OldLabel, NewLabel],
         newLabels: Labels[ev.NewShape]
     ): Tensor[ev.NewShape, V] = Tensor(tensor.jaxValue)
-
-    def retag[newT <: Tuple](using newLabels: Labels[newT]): Tensor[newT, V] =
-      Tensor(tensor.jaxValue)(using newLabels)
 
     def relabelAll[newT <: Tuple](
         newAxes: newT

@@ -62,10 +62,34 @@ package object dimwit:
   // Export the Prime axis marker and the type classes that manipulate it
   export dimwit.prime.{Prime, PrimeRemover, PrimeRest, PrimeConcat}
 
-  // Export operations
-  export dimwit.tensor.TensorOps.*
+  // Export the type classes on value types, e.g. IsFloating
+  export dimwit.tensor.ValueTypeClasses.*
+
+  // Export the extension methods on tensors, e.g. `t.relu` or `t.sum(Axis[A])`.
+  // The functions they call are exported on the Tensor companion objects, e.g. `Tensor.relu(t)`.
+  export dimwit.tensor.tensorops.ElementWiseExtensions.*
+  export dimwit.tensor.tensorops.ReductionExtensions.*
+  export dimwit.tensor.tensorops.AlongAxisExtensions.*
+  export dimwit.tensor.tensorops.ContractionExtensions.*
+  export dimwit.tensor.tensorops.ConvolutionExtensions.*
+  export dimwit.tensor.tensorops.LinearAlgebraExtensions.*
+  export dimwit.tensor.tensorops.StructuralExtensions.*
+  export dimwit.tensor.tensorops.FunctionalExtensions.*
+  export dimwit.tensor.tensorops.Tensor0Extensions.*
+  export dimwit.tensor.tensorops.Tensor1Extensions.*
+  export dimwit.tensor.tensorops.Tensor2Extensions.*
+  export dimwit.tensor.tensorops.Tensor3Extensions.*
+  export dimwit.tensor.ValueExtensions.*
+
+  // Export the functions that have no extension method or operator doing the same, e.g. `maximum(t1, t2)` or `stack(tensors, Axis[A])`.
+  export dimwit.tensor.tensorops.ElementWiseOps.{maximum, minimum, maximum_!, minimum_!}
+  export dimwit.tensor.tensorops.StructuralOps.{where, where_!, triu, tril, stack, concatenate}
+  export dimwit.tensor.tensorops.FunctionalOps.zipvmap
+
+  // Export convolution options
+  export dimwit.tensor.{Padding, Stride1, Stride2, Stride3}
+
   export dimwit.linalg.LinearAlgebra.{VectorNormType, MatrixNormType, QRMode}
-  export dimwit.tensor.ValueOps.*
 
   // Export devices
   export dimwit.hardware.Device

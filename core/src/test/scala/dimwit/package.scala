@@ -25,7 +25,7 @@ def approxEqual[T <: Tuple: Labels](right: Tensor[T, Float32], tolerance: Float 
   new Matcher[Tensor[T, Float32]]:
     def apply(left: Tensor[T, Float32]): MatchResult =
 
-      val areEqual = (left `approxEquals` (right, tolerance)).item
+      val areEqual = left.approxEquals(right, tolerance).item
       lazy val diffMsg = if areEqual then "" else s"Max diff: ${(left - right).abs.max}"
 
       MatchResult(

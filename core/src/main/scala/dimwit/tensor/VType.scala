@@ -1,6 +1,6 @@
 package dimwit.tensor
 
-import dimwit.tensor.TensorOps.HasDType
+import dimwit.tensor.ValueTypeClasses.HasDType
 
 object VType:
   def apply[V](tensor: Tensor[?, V]): VType[V] = VTypeImpl[V](tensor.dtype)
