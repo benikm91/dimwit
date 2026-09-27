@@ -1,7 +1,6 @@
 package dimwit.python
 
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.python.PyBridge
 import dimwit.jax.Jax
 import me.shadaj.scalapy.py

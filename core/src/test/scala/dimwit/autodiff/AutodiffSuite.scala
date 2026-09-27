@@ -1,7 +1,6 @@
 package dimwit.autodiff
 
 import dimwit.*
-import dimwit.Conversions.given
 
 /** A parameter tree, declared top level so its Mirror is available. */
 case class JacParams(w: Tensor1[A, Float32], b: Tensor1[B, Float32]) derives TensorTree

@@ -1,7 +1,6 @@
 package dimwit.tensortree
 
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.tensortree.TreeOf.*
 import dimwit.tensortree.TreeOf.given
 import dimwit.tensortree.TreeOf.ops.*

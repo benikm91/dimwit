@@ -193,7 +193,6 @@ class TensorCreationSuite extends DimwitTest:
         Tensor1(Axis[A]).linspace(Tensor0(0.0), Tensor0(1.0), 3).dtype shouldBe DType.Float64
 
     it("typed factory fixes the value type and accepts converted literals"):
-      import dimwit.Conversions.given
       Tensor1(Axis[A], VType[Float16]).linspace(0.0f, 1.0f, 3).dtype shouldBe DType.Float16
       Tensor1(Axis[A], VType[Float32]).linspace(0.0f, 1.0f, 3, endpoint = false) shouldEqual Tensor1(Axis[A]).fromArray(Array(0.0f, 1.0f / 3.0f, 2.0f / 3.0f))
 

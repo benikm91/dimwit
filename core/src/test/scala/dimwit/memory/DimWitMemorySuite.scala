@@ -1,7 +1,6 @@
 package dimwit.memory
 
 import dimwit.*
-import dimwit.Conversions.given
 import org.scalatest.DoNotDiscover
 import scala.compiletime.testing.typeCheckErrors
 import scala.compiletime.ops.double

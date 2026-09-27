@@ -266,9 +266,7 @@ val descendingSpaced = Tensor1(Axis[A]).linspace(Tensor0(1.0f), Tensor0(0.0f), 3
 val samples = Tensor1(Axis[B]).fromArray(Array(4.0f, 2.0f, 8.0f))
 val binEdges = Tensor1(Axis[A]).linspace(samples.min, samples.max, 4)
 
-// The typed factory fixes the value type; with dimwit.Conversions.given
-// plain literals are converted to Tensor0 of that type
-import dimwit.Conversions.given
+// The typed factory fixes the value type; plain literals are converted to Tensor0 of that type
 val halfSpaced = Tensor1(Axis[A], VType[Float16]).linspace(0.0f, 1.0f, 5)
 ```
 
@@ -474,10 +472,10 @@ val wrong = t.sum(Axis[C])
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 71 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 70 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 117
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 116
 //
 ```
 
@@ -519,10 +517,10 @@ val wrong = t + 5.0f  // Use +! instead
 // Conflicting definitions:
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 71 and
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 70 and
 // val t:
 //   dimwit.tensor.Tensor2[MdocApp0.this.A, MdocApp0.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 126
+//     dimwit.tensor.DType.Float32] in class MdocApp0 at line 125
 //
 ```
 
@@ -612,19 +610,19 @@ val wrong = m1.dot(Axis[B])(m2)
 // Conflicting definitions:
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 148 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 147 and
 // val m1:
 //   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 151
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 150
 // 
 // error: 
 // Conflicting definitions:
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.B, MdocApp1.this.C,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 149 and
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 148 and
 // val m2:
 //   dimwit.tensor.Tensor2[MdocApp1.this.C, MdocApp1.this.D,
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 152
+//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 151
 //
 ```
 
@@ -1007,7 +1005,6 @@ println(s"Block Hessian shapes: ${h_x1x1.shape}, ${h_x1x2.shape}, ${h_x2x1.shape
 
 ```scala
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.optimizer.{GradientDescent, GradientOptimizer}
 import dimwit.random.Random
 
@@ -1056,7 +1053,6 @@ val trained = optimizer.iterate(initModelParams)(gradFunc)
 
 ```scala
 import dimwit.optimizer.Lion
-import dimwit.Conversions.given // enables implicit conversion from Float to Tensor[V]
 
 // Lion optimizer with momentum
 val lionOptimizer = Lion(learningRate = 1e-3f, beta1 = 0.9f, beta2 = 0.99f, weightDecay = 0.0f)
@@ -1071,8 +1067,6 @@ val trainedLion = lionOptimizer.iterate(initModelParams)(gradFunc)
 ### Complete Training Example: Linear Regression
 
 ```scala
-import dimwit.Conversions.given // enables implicit conversion from Float to Tensor[V]
-
 // Define problem dimensions
 trait Sample derives Label
 trait InputDim derives Label

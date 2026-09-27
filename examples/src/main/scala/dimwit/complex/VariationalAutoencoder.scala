@@ -1,6 +1,5 @@
 package dimwit.examples.complex.vae
 
-import dimwit.Conversions.given
 import dimwit.*
 import dimwit.tensortree.TreeOf.*
 import dimwit.autodiff.*

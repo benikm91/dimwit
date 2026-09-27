@@ -1,6 +1,5 @@
 package dimwit.examples.dataset
 
-import dimwit.Conversions.given
 import dimwit.*
 import me.shadaj.scalapy.py
 

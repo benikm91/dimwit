@@ -1,7 +1,6 @@
 package dimwit.optimizer
 
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.autodiff.*
 import dimwit.autodiff.Grad
 import dimwit.tensortree.TreeOf

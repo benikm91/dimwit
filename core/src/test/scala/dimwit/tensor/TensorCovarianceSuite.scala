@@ -1,7 +1,6 @@
 package dimwit.tensor
 
 import dimwit.*
-import dimwit.Conversions.given
 import scala.collection.View.Empty
 
 class TensorCovarianceSuite extends DimwitTest:
