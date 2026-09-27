@@ -69,9 +69,9 @@ private[dimwit] object ReductionOps:
   def nanmedian[T <: Tuple: Labels, V: IsFloating, Inputs <: Tuple](t: Tensor[T, V], axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = Tensor(Jax.jnp.nanmedian(t.jaxValue, axis = ev.indices.toPythonProxy))
 
   /** computes the `q`th quantile of `t` (over all elements, or) along the specified axis or axes. */
-  def quantile[T <: Tuple: Labels, V: IsFloating](t: Tensor[T, V], q: Tensor0[V]): Tensor0[V] = Tensor0(Jax.jnp.quantile(t.jaxValue, q.jaxValue))
-  def quantile[T <: Tuple: Labels, V: IsFloating, L: Label](t: Tensor[T, V], q: Tensor0[V], axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = Tensor(Jax.jnp.quantile(t.jaxValue, q.jaxValue, axis = ev.index))
-  def quantile[T <: Tuple: Labels, V: IsFloating, Inputs <: Tuple](t: Tensor[T, V], q: Tensor0[V], axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = Tensor(Jax.jnp.quantile(t.jaxValue, q.jaxValue, axis = ev.indices.toPythonProxy))
+  def quantile[T <: Tuple: Labels, V: IsFloating](t: Tensor[T, V], q: Float): Tensor0[V] = Tensor0(Jax.jnp.quantile(t.jaxValue, q))
+  def quantile[T <: Tuple: Labels, V: IsFloating, L: Label](t: Tensor[T, V], q: Float, axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = Tensor(Jax.jnp.quantile(t.jaxValue, q, axis = ev.index))
+  def quantile[T <: Tuple: Labels, V: IsFloating, Inputs <: Tuple](t: Tensor[T, V], q: Float, axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = Tensor(Jax.jnp.quantile(t.jaxValue, q, axis = ev.indices.toPythonProxy))
 
 private[dimwit] object ReductionExtensions:
 
@@ -117,9 +117,9 @@ private[dimwit] object ReductionExtensions:
     def std: Tensor0[V] = ReductionOps.std(t)
 
     /** computes the qth quantile of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
-    def quantile[Inputs <: Tuple](q: Tensor0[V], axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = ReductionOps.quantile(t, q, axes)
-    def quantile[L: Label](q: Tensor0[V], axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = ReductionOps.quantile(t, q, axis)
-    def quantile(q: Tensor0[V]): Tensor0[V] = ReductionOps.quantile(t, q)
+    def quantile[Inputs <: Tuple](q: Float, axes: Inputs)(using ev: AxesRemover[T, UnwrapAxes[Inputs]], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = ReductionOps.quantile(t, q, axes)
+    def quantile[L: Label](q: Float, axis: Axis[L])(using ev: AxisRemover[T, L], l: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] = ReductionOps.quantile(t, q, axis)
+    def quantile(q: Float): Tensor0[V] = ReductionOps.quantile(t, q)
 
     /** computes the median of the tensor `t` along the specified axes, returning a new tensor with those axes removed. */
     def median: Tensor0[V] = ReductionOps.median(t)

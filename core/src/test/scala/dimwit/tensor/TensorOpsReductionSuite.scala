@@ -33,7 +33,7 @@ class TensorOpsReductionSuite extends DimwitTest:
 
     it("=== (Tensor0[Boolean])"):
       (t2 === t2).item shouldBe true
-      (t2 === (t2 *! Tensor0(0.0f))).item shouldBe false
+      (t2 === (t2 *! 0.0f)).item shouldBe false
 
   describe("Reduction Ops"):
     it("sum"):
