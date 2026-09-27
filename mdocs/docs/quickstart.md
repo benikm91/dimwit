@@ -11,7 +11,6 @@ Before we start exploring the features of DimWit, let's look at a simple example
 ```scala mdoc:silent
 // main imports for basic tensor operations and automatic differentiation
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.Autodiff.grad // TODO replace with cleaner import after PR is merged
 import dimwit.optimizer.GradientDescent // TODO replace with cleaner import after refactoring 
 

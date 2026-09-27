@@ -1,6 +1,5 @@
 package dimwit.examples.basic
 
-import dimwit.Conversions.given
 import dimwit.*
 import dimwit.autodiff.*
 import dimwit.optimizer.GradientDescent

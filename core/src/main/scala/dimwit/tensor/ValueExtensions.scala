@@ -7,8 +7,8 @@ import dimwit.tensor.tensorops.ElementWiseOps
 
 /** Operators with a Scala scalar on the left, e.g. `2.0f *! t` or `3 < t0`.
   *
-  * `t op scalar` works through the implicit conversions in [[dimwit.Conversions]], which convert the scalar to a
-  * `Tensor0` of the tensor's value type. `scalar op t` cannot use them, because Scala does not convert the receiver of
+  * `t op scalar` works through the implicit conversions exported on the [[Tensor]] companion object, which convert the
+  * scalar to a `Tensor0` of the tensor's value type. `scalar op t` cannot use them, because Scala does not convert the receiver of
   * a method call. These extension methods mirror every operator `t op scalar` by asking for the very same conversion,
   * so both orders compile for exactly the same scalar and value types, and in both the scalar takes the precision of
   * the tensor. Named methods like `elementEquals` or `and` are deliberately not mirrored: `2.0f.approxEquals(t)` reads

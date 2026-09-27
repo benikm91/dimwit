@@ -28,7 +28,7 @@ import DType.*
   * @param T The shape of the tensor, represented as a tuple of axis labels.
   * @param V The data type of the tensor elements.
   */
-class Tensor[T <: Tuple: Labels, V] private[dimwit] (
+into class Tensor[T <: Tuple: Labels, V] private[dimwit] (
     private[dimwit] val jaxValue: Jax.PyDynamic
 ):
 
@@ -201,6 +201,10 @@ object Tensor:
   /** Use the [[LikeFactory]] to create a tensor */
   def like[T <: Tuple: Labels, V](template: Tensor[T, V]): LikeFactory[T, V] = LikeFactory(template)
 
+  // The conversions from Scala scalars to a Tensor0, e.g. `t *! 2.0f`. Being members of the companion object, they
+  // are found without an import, and `into class Tensor` allows them without a feature warning.
+  export Tensor0Conversions.given
+
   // The functions on tensors, e.g. `Tensor.relu(t)` or `Tensor.sum(t, Axis[A])`.
   // Each one has an extension method with the same name, e.g. `t.relu` or `t.sum(Axis[A])`.
   export tensorops.ElementWiseOps.*
@@ -223,30 +227,6 @@ type Tensor4[L1, L2, L3, L4, V] = Tensor[(L1, L2, L3, L4), V]
   *  Provides factory methods for creating tensors of rank 0 with various value types.
   */
 object Tensor0:
-
-  given boolean2BooleanTensor[V: IsBoolean]: Conversion[Boolean, Tensor0[V]] with
-    def apply(value: Boolean): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given byte2IntegerTensor[V: IsInteger]: Conversion[Byte, Tensor0[V]] with
-    def apply(value: Byte): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given short2IntegerTensor[V: IsInteger]: Conversion[Short, Tensor0[V]] with
-    def apply(value: Short): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given int2IntegerTensor[V: IsInteger]: Conversion[Int, Tensor0[V]] with
-    def apply(value: Int): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given int2FloatingTensor[V: IsFloating]: Conversion[Int, Tensor0[V]] with
-    def apply(value: Int): Tensor0[V] = Tensor0(VType[V])(value.toFloat)
-
-  given long2IntegerTensor[V: IsInteger]: Conversion[Long, Tensor0[V]] with
-    def apply(value: Long): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given float2FloatingTensor[V: IsFloating]: Conversion[Float, Tensor0[V]] with
-    def apply(value: Float): Tensor0[V] = Tensor0(VType[V])(value)
-
-  given double2FloatingTensor[V: IsFloating]: Conversion[Double, Tensor0[V]] with
-    def apply(value: Double): Tensor0[V] = Tensor0(VType[V])(value)
 
   object Value0Factory:
 

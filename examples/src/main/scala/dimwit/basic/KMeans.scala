@@ -1,6 +1,5 @@
 package dimwit.examples.basic.kmeans
 
-import dimwit.Conversions.given
 import dimwit.*
 import dimwit.random.Random
 import dimwit.stats.Normal

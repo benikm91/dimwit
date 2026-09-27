@@ -141,8 +141,6 @@ private[dimwit] object StructuralOps:
     object AxisAbsent:
       given notContained[T <: Tuple, L](using NotGiven[Tuple.Contains[T, L] =:= true]): AxisAbsent[T, L] = new AxisAbsent[T, L] {}
 
-  import Util.*
-
   object TensorWhere:
 
     /** Returns a new tensor selecting elements from `ifTrue` where the condition is true

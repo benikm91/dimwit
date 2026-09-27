@@ -1,7 +1,6 @@
 package dimwit.optimizer
 
 import dimwit.*
-import dimwit.Conversions.given
 
 class GradientOptimizerSuite extends DimwitTest:
 

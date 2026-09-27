@@ -221,9 +221,7 @@ val descendingSpaced = Tensor1(Axis[A]).linspace(Tensor0(1.0f), Tensor0(0.0f), 3
 val samples = Tensor1(Axis[B]).fromArray(Array(4.0f, 2.0f, 8.0f))
 val binEdges = Tensor1(Axis[A]).linspace(samples.min, samples.max, 4)
 
-// The typed factory fixes the value type; with dimwit.Conversions.given
-// plain literals are converted to Tensor0 of that type
-import dimwit.Conversions.given
+// The typed factory fixes the value type; plain literals are converted to Tensor0 of that type
 val halfSpaced = Tensor1(Axis[A], VType[Float16]).linspace(0.0f, 1.0f, 5)
 ```
 
@@ -797,7 +795,6 @@ println(s"Block Hessian shapes: ${h_x1x1.shape}, ${h_x1x2.shape}, ${h_x2x1.shape
 
 ```scala mdoc:reset:silent
 import dimwit.*
-import dimwit.Conversions.given
 import dimwit.optimizer.{GradientDescent, GradientOptimizer}
 import dimwit.random.Random
 
@@ -846,7 +843,6 @@ val trained = optimizer.iterate(initModelParams)(gradFunc)
 
 ```scala mdoc:silent
 import dimwit.optimizer.Lion
-import dimwit.Conversions.given // enables implicit conversion from Float to Tensor[V]
 
 // Lion optimizer with momentum
 val lionOptimizer = Lion(learningRate = 1e-3f, beta1 = 0.9f, beta2 = 0.99f, weightDecay = 0.0f)
@@ -861,8 +857,6 @@ val trainedLion = lionOptimizer.iterate(initModelParams)(gradFunc)
 ### Complete Training Example: Linear Regression
 
 ```scala mdoc:silent
-import dimwit.Conversions.given // enables implicit conversion from Float to Tensor[V]
-
 // Define problem dimensions
 trait Sample derives Label
 trait InputDim derives Label
