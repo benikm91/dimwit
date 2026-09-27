@@ -1240,8 +1240,8 @@ val wrong = intTensor.exp  // exp requires IsFloating constraint
 //       dimwit.tensor.Labels.consTuple[MdocApp12.this.A, EmptyTuple.type](
 //         this.A.derived$Label, dimwit.tensor.Labels.emptyTuple),
 //       /* missing */
-//         summon[dimwit.tensor.TensorOps.IsFloating[dimwit.tensor.DType.Int32]]
-//     )
+//         summon[dimwit.tensor.ValueTypeClasses.IsFloating[dimwit.tensor.DType.Int32]]
+//       )
 // 
 //     failed with:
 // 
@@ -1261,7 +1261,7 @@ val wrong = boolTensor.mean
 //       dimwit.tensor.Labels.consTuple[MdocApp12.this.A, EmptyTuple.type](
 //         this.A.derived$Label, dimwit.tensor.Labels.emptyTuple),
 //       /* missing */
-//         summon[dimwit.tensor.TensorOps.IsFloating[dimwit.tensor.DType.Bool]]
+//         summon[dimwit.tensor.ValueTypeClasses.IsFloating[dimwit.tensor.DType.Bool]]
 //     )
 // 
 //     failed with:
@@ -1332,9 +1332,8 @@ val wrong = t1 +! t2
 // Cannot broadcast tensors of shapes Tuple1[MdocApp12.this.A] and Tuple1[MdocApp12.this.A]. If same shape no broadcasting allowed!.
 // I found:
 // 
-//     dimwit.tensor.tensorops.TensorOpsUtil.Broadcast.broadcastLeft[
-//       Tuple1[MdocApp12.this.A], Tuple1[MdocApp12.this.A],
-//       dimwit.tensor.DType.Float32](
+//     dimwit.tensor.Broadcast.broadcastLeft[Tuple1[MdocApp12.this.A],
+//       Tuple1[MdocApp12.this.A], dimwit.tensor.DType.Float32](
 //       dimwit.tensor.Labels.consTuple[MdocApp12.this.A, EmptyTuple.type](
 //         this.A.derived$Label, dimwit.tensor.Labels.emptyTuple),
 //       dimwit.tensor.Labels.consTuple[MdocApp12.this.A, EmptyTuple.type](
@@ -1422,13 +1421,13 @@ val wrong = Autodiff.grad(nonScalar)  // Use jacobian instead
 // None of the overloaded alternatives of method grad in object Autodiff with types
 //  [Input, V]
 //   (f: Input => dimwit.tensor.Tensor0[V])
-//     (using evidence$1: dimwit.tensor.TensorOps.IsFloating[V],
+//     (using evidence$1: dimwit.tensor.ValueTypeClasses.IsFloating[V],
 //       inTree: dimwit.tensortree.TensorTree[Input], outTree:
 //       dimwit.tensortree.TensorTree[dimwit.tensor.Tensor0[V]]): Input =>
 //       dimwit.autodiff.Grad[Input]
 //  [T1, T2, T3, V²]
 //   (f: (T1, T2, T3) => dimwit.tensor.Tensor0[V²])
-//     (using evidence$1²: dimwit.tensor.TensorOps.IsFloating[V²],
+//     (using evidence$1²: dimwit.tensor.ValueTypeClasses.IsFloating[V²],
 //       t1Tree: dimwit.tensortree.TensorTree[T1],
 //       t2Tree: dimwit.tensortree.TensorTree[T2],
 //       t3Tree: dimwit.tensortree.TensorTree[T3], outTree²:
@@ -1436,7 +1435,7 @@ val wrong = Autodiff.grad(nonScalar)  // Use jacobian instead
 //       dimwit.autodiff.Grad[(T1, T2, T3)]
 //  [T1², T2², V³]
 //   (f: (T1², T2²) => dimwit.tensor.Tensor0[V³])
-//     (using evidence$1³: dimwit.tensor.TensorOps.IsFloating[V³],
+//     (using evidence$1³: dimwit.tensor.ValueTypeClasses.IsFloating[V³],
 //       t1Tree²: dimwit.tensortree.TensorTree[T1²],
 //       t2Tree²: dimwit.tensortree.TensorTree[T2²], outTree³:
 //       dimwit.tensortree.TensorTree[dimwit.tensor.Tensor0[V³]]): (T1², T2²) =>

@@ -12,10 +12,60 @@ import me.shadaj.scalapy.readwrite.Writer
 
 import scala.annotation.targetName
 
-/** Provides extension methods for tensor contraction operations,
-  * including outer products and dot products.
-  */
-object ContractionOps:
+/** Tensor contraction operations: outer products and dot products. */
+private[dimwit] object ContractionOps:
+
+  /** Computes the outer product of `t1` and `t2`.
+    * Automatically primes the labels of the resulting tensor to avoid label collisions.
+    */
+  def outerProduct[T <: Tuple: Labels, OtherShape <: Tuple: Labels, V](t1: Tensor[T, V], t2: Tensor[OtherShape, V])(using
+      primeConcat: PrimeConcat[T, OtherShape],
+      labels: Labels[primeConcat.Out]
+  ): Tensor[primeConcat.Out, V] = Tensor(
+    Jax.jnp.tensordot(t1.jaxValue, t2.jaxValue, axes = 0) // generalized outer product
+  )
+
+  /** Computes the dot product of `t1` and `t2` along the specified axis.
+    * The axis must be present in both tensors and will be contracted (removed) from the resulting tensor.
+    *
+    * @param axis The axis along which to contract. Must be present in both tensors.
+    */
+  def dot[T <: Tuple, ContractAxis, OtherShape <: Tuple, V](t1: Tensor[T, V], axis: Axis[ContractAxis], t2: Tensor[OtherShape, V])(using
+      ev: AxisRemover[T, ContractAxis],
+      evOther: AxisRemover[OtherShape, ContractAxis]
+  )(using
+      primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
+      labelsOut: Labels[primeConcat.Out]
+  ): Tensor[primeConcat.Out, V] =
+    tensordot(t1, ev.index, t2, evOther.index)
+
+  /** Computes the dot product of `t1` and `t2` along the specified pair of axes.
+    * The axes must be present in their respective tensors and will be contracted (removed) from the resulting tensor.
+    *
+    * @param axisPair The pair of axes along which to contract. Each axis must be present in its respective tensor.
+    */
+  @targetName("dotOn")
+  def dot[T <: Tuple, ContractAxisA, ContractAxisB, OtherShape <: Tuple, V](
+      t1: Tensor[T, V],
+      axisPair: (Axis[ContractAxisA], Axis[ContractAxisB]),
+      t2: Tensor[OtherShape, V]
+  )(using
+      ev: AxisRemover[T, ContractAxisA],
+      evOther: AxisRemover[OtherShape, ContractAxisB]
+  )(using
+      primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
+      outLabels: Labels[primeConcat.Out]
+  ): Tensor[primeConcat.Out, V] =
+    tensordot(t1, ev.index, t2, evOther.index)
+
+  private def tensordot[Out <: Tuple: Labels, V](t1: Tensor[?, V], index1: Int, t2: Tensor[?, V], index2: Int): Tensor[Out, V] =
+    val axesTuple1 = Jax.Dynamic.global.tuple(Seq(index1).toPythonProxy)
+    val axesTuple2 = Jax.Dynamic.global.tuple(Seq(index2).toPythonProxy)
+    val axesPair = Jax.Dynamic.global.tuple(Seq(axesTuple1, axesTuple2).toPythonProxy)
+    Tensor(Jax.jnp.tensordot(t1.jaxValue, t2.jaxValue, axes = axesPair))
+
+/** Extension methods for tensor contraction operations, e.g. `t1.dot(Axis[A])(t2)`. */
+private[dimwit] object ContractionExtensions:
 
   extension [T <: Tuple: Labels, V](tensor: Tensor[T, V])
 
@@ -25,9 +75,7 @@ object ContractionOps:
     def outerProduct[OtherShape <: Tuple: Labels](other: Tensor[OtherShape, V])(using
         primeConcat: PrimeConcat[T, OtherShape],
         labels: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] = Tensor(
-      Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = 0) // generalized outer product
-    )
+    ): Tensor[primeConcat.Out, V] = ContractionOps.outerProduct(tensor, other)
 
     /** Computes the dot product of this tensor with another tensor along the specified axis.
       * The axis must be present in both tensors and will be contracted (removed) from the resulting tensor.
@@ -44,12 +92,7 @@ object ContractionOps:
     )(using
         primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
         labelsOut: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] =
-      val axesTuple1 = Jax.Dynamic.global.tuple(Seq(ev.index).toPythonProxy)
-      val axesTuple2 = Jax.Dynamic.global.tuple(Seq(evOther.index).toPythonProxy)
-      val axesPair = Jax.Dynamic.global.tuple(Seq(axesTuple1, axesTuple2).toPythonProxy)
-
-      Tensor(Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = axesPair))
+    ): Tensor[primeConcat.Out, V] = ContractionOps.dot(tensor, axis, other)
 
     /** Computes the dot product of this tensor with another tensor along the specified pair of axes.
       * The axes must be present in their respective tensors and will be contracted (removed) from the resulting tensor.
@@ -68,9 +111,4 @@ object ContractionOps:
     )(using
         primeConcat: PrimeConcat[ev.RemainingAxes, evOther.RemainingAxes],
         outLabels: Labels[primeConcat.Out]
-    ): Tensor[primeConcat.Out, V] =
-      val axesTuple1 = Jax.Dynamic.global.tuple(Seq(ev.index).toPythonProxy)
-      val axesTuple2 = Jax.Dynamic.global.tuple(Seq(evOther.index).toPythonProxy)
-      val axesPair = Jax.Dynamic.global.tuple(Seq(axesTuple1, axesTuple2).toPythonProxy)
-
-      Tensor(Jax.jnp.tensordot(tensor.jaxValue, other.jaxValue, axes = axesPair))
+    ): Tensor[primeConcat.Out, V] = ContractionOps.dot(tensor, axisPair, other)

@@ -6,7 +6,7 @@ import dimwit.tensor.Label
 import dimwit.tensor.Labels
 import dimwit.tensor.Tensor2
 
-object Tensor2Ops:
+private[dimwit] object Tensor2Extensions:
 
   extension [L1: Label, L2: Label, V](t: Tensor2[L1, L2, V])
 
@@ -18,7 +18,7 @@ object Tensor2Ops:
       * @param axis1 the second axis to swap
       * @return a new Tensor2 with the specified axes transposed
       */
-    def transpose(axis2: Axis[L2], axis1: Axis[L1]): Tensor2[L2, L1, V] = StructuralOps.transpose(t)(axis2, axis1)
+    def transpose(axis2: Axis[L2], axis1: Axis[L1]): Tensor2[L2, L1, V] = StructuralExtensions.transpose(t)(axis2, axis1)
 
   extension [L1, L2, V, X](t: Tensor2[L1, L2, V])(using ev: HasScalar[V, X])
     /** Converts a Tensor2 to a nested Scala Array (Array of Arrays).

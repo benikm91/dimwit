@@ -1,6 +1,7 @@
 package dimwit.tensor
 
 import dimwit.*
+import dimwit.Conversions.given
 
 class TensorOpsReductionSuite extends DimwitTest:
 
@@ -32,7 +33,7 @@ class TensorOpsReductionSuite extends DimwitTest:
 
     it("=== (Tensor0[Boolean])"):
       (t2 === t2).item shouldBe true
-      (t2 === (t2 *! Tensor0(0.0f))).item shouldBe false
+      (t2 === (t2 *! 0.0f)).item shouldBe false
 
   describe("Reduction Ops"):
     it("sum"):
@@ -152,3 +153,26 @@ class TensorOpsReductionSuite extends DimwitTest:
       t2.approxEquals(t2Near).item shouldBe true
       val t2Far = t2 *! Tensor0(1.1f)
       t2.approxEquals(t2Far).item shouldBe false
+      Tensor.approxEquals(t2, t2Near) shouldEqual t2.approxEquals(t2Near)
+
+  describe("Function forms (Tensor.op(t, ...) is t.op(...))"):
+    it("numeric reductions"):
+      Tensor.sum(t2) shouldEqual t2.sum
+      Tensor.sum(t2, Axis[A]) shouldEqual t2.sum(Axis[A])
+      Tensor.sum(t2, (Axis[A], Axis[B])) shouldEqual t2.sum((Axis[A], Axis[B]))
+      Tensor.max(t2) shouldEqual t2.max
+      Tensor.max(t2, Axis[B]) shouldEqual t2.max(Axis[B])
+      Tensor.min(t2) shouldEqual t2.min
+      Tensor.min(t2, Axis[B]) shouldEqual t2.min(Axis[B])
+      Tensor.argmax(t2, Axis[B]) shouldEqual t2.argmax(Axis[B])
+      Tensor.argmin(t2, Axis[B]) shouldEqual t2.argmin(Axis[B])
+
+    it("floating reductions"):
+      Tensor.mean(t2) shouldEqual t2.mean
+      Tensor.mean(t2, Axis[A]) shouldEqual t2.mean(Axis[A])
+      Tensor.std(t2, Axis[B]) shouldEqual t2.std(Axis[B])
+      Tensor.quantile(t2, 0.5f) shouldEqual t2.quantile(0.5f)
+      Tensor.quantile(t2, 0.5f, Axis[B]) shouldEqual t2.quantile(0.5f, Axis[B])
+      Tensor.median(t2, Axis[B]) shouldEqual t2.median(Axis[B])
+      Tensor.nanmean(t2, Axis[B]) shouldEqual t2.nanmean(Axis[B])
+      Tensor.nanmedian(t2, Axis[B]) shouldEqual t2.nanmedian(Axis[B])

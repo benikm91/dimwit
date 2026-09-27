@@ -1,6 +1,6 @@
 package dimwit.tensortree
 
-import dimwit.tensor.TensorOps.*
+import dimwit.*
 import dimwit.tensor.*
 
 import scala.NamedTuple.NamedTuple
@@ -129,12 +129,12 @@ object TreeOf:
       def `//!`(p2: Tensor0[V]): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => a /! p2)
 
     extension [P: TensorTree, V](p1: P)(using TreeOf[P, V], NotGiven[P <:< Tensor[?, ?]])(using IsFloating[V])
-      def sqrt: P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => TensorOps.sqrt(a))
+      def sqrt: P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => Tensor.sqrt(a))
 
       def pow(exponent: Float): P = pow(Tensor0(VType[V])(exponent))
-      def pow(exponent: Tensor0[V]): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => TensorOps.pow(a)(exponent))
-      def scale(scalar: Tensor0[V]): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => TensorOps.scale(a)(scalar))
-      def sign: P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => TensorOps.sign(a))
+      def pow(exponent: Tensor0[V]): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => Tensor.pow(a, exponent))
+      def scale(scalar: Tensor0[V]): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => Tensor.scale(a, scalar))
+      def sign: P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => Tensor.sign(a))
 
       def fillCopy(value: Float): P = p1.map([T <: Tuple] => (n: Labels[T]) ?=> (a: Tensor[T, V]) => Tensor(a.shape, VType[V]).fill(value))
 

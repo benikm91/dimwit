@@ -1,7 +1,6 @@
 package dimwit.tensor
 
 import dimwit.*
-import dimwit.tensor.TensorOps.Padding
 import dimwit.stats.Normal
 
 class TensorOpsConvolutionSuite extends DimwitTest:
@@ -710,3 +709,31 @@ class TensorOpsConvolutionSuite extends DimwitTest:
       val dotRight = (xBatched * transposeConvOutput).sum.item
 
       Math.abs(dotLeft - dotRight) should be < 1e-2f
+
+  describe("Function forms (Tensor.op(input, kernel) is input.op(kernel))"):
+    trait S1 derives Label
+    trait S2 derives Label
+    trait S3 derives Label
+    trait In derives Label
+    trait Out derives Label
+
+    it("conv1d and transposeConv1d"):
+      val input = Tensor(Shape(Axis[S1] -> 5, Axis[In] -> 2)).fill(1.0f)
+      val kernel = Tensor(Shape(Axis[S1] -> 3, Axis[In] -> 2, Axis[Out] -> 4)).fill(0.5f)
+      Tensor.conv1d(input, kernel, stride = 2, padding = Padding.VALID) shouldEqual input.conv1d(kernel, stride = 2, padding = Padding.VALID)
+      val output = input.conv1d(kernel)
+      Tensor.transposeConv1d(output, kernel) shouldEqual output.transposeConv1d(kernel)
+
+    it("conv2d and transposeConv2d"):
+      val input = Tensor(Shape(Axis[S1] -> 4, Axis[S2] -> 4, Axis[In] -> 2)).fill(1.0f)
+      val kernel = Tensor(Shape(Axis[S1] -> 2, Axis[S2] -> 2, Axis[In] -> 2, Axis[Out] -> 3)).fill(0.5f)
+      Tensor.conv2d(input, kernel) shouldEqual input.conv2d(kernel)
+      val output = input.conv2d(kernel)
+      Tensor.transposeConv2d(output, kernel) shouldEqual output.transposeConv2d(kernel)
+
+    it("conv3d and transposeConv3d"):
+      val input = Tensor(Shape(Axis[S1] -> 3, Axis[S2] -> 3, Axis[S3] -> 3, Axis[In] -> 2)).fill(1.0f)
+      val kernel = Tensor(Shape(Axis[S1] -> 2, Axis[S2] -> 2, Axis[S3] -> 2, Axis[In] -> 2, Axis[Out] -> 3)).fill(0.5f)
+      Tensor.conv3d(input, kernel) shouldEqual input.conv3d(kernel)
+      val output = input.conv3d(kernel)
+      Tensor.transposeConv3d(output, kernel) shouldEqual output.transposeConv3d(kernel)

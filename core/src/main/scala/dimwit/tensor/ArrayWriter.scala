@@ -1,9 +1,9 @@
 package dimwit.tensor
 
 import dimwit.jax.Jax
-import dimwit.tensor.TensorOps.IsBoolean
-import dimwit.tensor.TensorOps.IsFloating
-import dimwit.tensor.TensorOps.IsInteger
+import dimwit.tensor.ValueTypeClasses.IsBoolean
+import dimwit.tensor.ValueTypeClasses.IsFloating
+import dimwit.tensor.ValueTypeClasses.IsInteger
 import me.shadaj.scalapy.py
 import me.shadaj.scalapy.py.SeqConverters
 import me.shadaj.scalapy.readwrite.Writer

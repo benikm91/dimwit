@@ -222,3 +222,75 @@ class TensorOpsBroadcastSuite extends DimwitTest:
       val ab = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f)))
       val bc = Tensor2(Axis[B], Axis[C]).fromArray(Array(Array(10.0f), Array(20.0f)))
       "ab +! bc" shouldNot compile // TODO add support for this
+
+  describe("Function forms (Tensor.op_!(t1, t2) is t1 op! t2)"):
+    val bAB = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(true, false), Array(false, true)))
+    val bA = Tensor1(Axis[A]).fromArray(Array(true, false))
+
+    it("arithmetic"):
+      Tensor.add_!(tAB, tA) shouldEqual (tAB +! tA)
+      Tensor.subtract_!(tA, tAB) shouldEqual (tA -! tAB)
+      Tensor.multiply_!(tAB, tA) shouldEqual (tAB *! tA)
+      Tensor.divide_!(tAB, tA) shouldEqual (tAB /! tA)
+      Tensor.mod_!(iAB, iA) shouldEqual (iAB %! iA)
+
+    it("comparisons"):
+      Tensor.less_!(tAB, tA) shouldEqual (tAB `<!` tA)
+      Tensor.lessEqual_!(tAB, tA) shouldEqual (tAB <=! tA)
+      Tensor.greater_!(tAB, tA) shouldEqual (tAB >! tA)
+      Tensor.greaterEqual_!(tAB, tA) shouldEqual (tAB >=! tA)
+      Tensor.equal_!(iAB, iA) shouldEqual iAB.elementEquals_!(iA)
+
+    it("logical"):
+      Tensor.logicalAnd_!(bAB, bA) shouldEqual (bAB and_! bA)
+      Tensor.logicalOr_!(bAB, bA) shouldEqual (bAB or_! bA)
+      Tensor.logicalXor_!(bAB, bA) shouldEqual (bAB xor_! bA)
+
+    it("maximum and minimum"):
+      val tA25 = Tensor1(Axis[A]).fromArray(Array(15.0f, 35.0f))
+      maximum_!(tAB, tA25) shouldEqual Tensor.like(tAB).fromArray(Array(15.0f, 20.0f, 35.0f, 40.0f))
+      minimum_!(tA25, tAB) shouldEqual Tensor.like(tAB).fromArray(Array(10.0f, 15.0f, 30.0f, 35.0f))
+
+    it("scale"):
+      Tensor.scale(tAB, Tensor0(2.0f)) shouldEqual tAB.scale(Tensor0(2.0f))
+
+    it("approxEquals and approxElementEquals"):
+      val nearA = Tensor1(Axis[A]).fromArray(Array(10.0000001f, 40.0000001f))
+      tAB.approxElementEquals_!(nearA) shouldEqual Tensor(tAB.shape).fromArray(Array(true, false, false, true))
+      Tensor.approxElementEquals_!(tAB, nearA) shouldEqual tAB.approxElementEquals_!(nearA)
+      tAB.approxEquals_!(nearA).item shouldBe false
+      Tensor.like(tAB).fill(3.0f).approxEquals_!(Tensor0(3.0000001f)).item shouldBe true
+      Tensor.approxEquals_!(tAB, Tensor0(10.0f)) shouldEqual tAB.approxEquals_!(Tensor0(10.0f))
+
+  describe("No implicit broadcasting without !"):
+    val tAB22 = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
+    val tAB12 = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(10.0f, 20.0f)))
+
+    it("same labels but different extents fail fast"):
+      an[IllegalArgumentException] should be thrownBy (tAB22 + tAB12)
+      an[IllegalArgumentException] should be thrownBy (tAB22 / tAB12)
+      an[IllegalArgumentException] should be thrownBy (tAB22 < tAB12)
+      an[IllegalArgumentException] should be thrownBy (tAB22 === tAB12)
+      an[IllegalArgumentException] should be thrownBy maximum(tAB22, tAB12)
+      an[IllegalArgumentException] should be thrownBy where(tAB22 > tAB22, tAB22, tAB12)
+      an[IllegalArgumentException] should be thrownBy tAB22.approxElementEquals(tAB12)
+
+    it("=== and ===!"):
+      (tAB === tAB).item shouldBe true
+      Tensor.arrayEqual(tAB, tAB) shouldEqual (tAB === tAB)
+      (Tensor.like(tAB).fill(3.0f) ===! Tensor0(3.0f)).item shouldBe true
+      (tAB ===! tA).item shouldBe false
+      Tensor.arrayEqual_!(tAB, tA) shouldEqual (tAB ===! tA)
+
+  describe("Scalar first"):
+    it("computes scalar op tensor, not tensor op scalar"):
+      (10 -! iAB) shouldEqual (Tensor0(10) -! iAB)
+      (10 % Tensor0(3)) shouldEqual Tensor0(1)
+      (10 %! iAB) shouldEqual (Tensor0(10) %! iAB)
+      (2.0 /! tAB) shouldEqual (Tensor0(2.0f) /! tAB)
+      (25.0 `<!` tAB) shouldEqual (Tensor0(25.0f) `<!` tAB)
+
+    it("takes the precision of the tensor"):
+      (2.5 *! tAB).dtype shouldBe DType.Float32
+      (2.5 * Tensor0(2.0f)).dtype shouldBe DType.Float32
+      (2L +! iAB).dtype shouldBe DType.Int32

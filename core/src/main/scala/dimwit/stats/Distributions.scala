@@ -2,7 +2,6 @@ package dimwit.stats
 
 import dimwit.*
 import dimwit.random.Random
-import dimwit.tensor.TensorOps
 
 opaque type LogProb = Float32
 opaque type Prob = Float32
@@ -15,8 +14,8 @@ object LogProb:
 
   extension [T <: Tuple: Labels](t: Tensor[T, LogProb])
 
-    def exp: Tensor[T, Prob] = TensorOps.exp(t)
-    def log: Tensor[T, Float32] = TensorOps.log(t) // Lose LogProb if we log again
+    def exp: Tensor[T, Prob] = Tensor.exp(t)
+    def log: Tensor[T, Float32] = Tensor.log(t) // Lose LogProb if we log again
     def asFloat: Tensor[T, Float32] = t
 
 object Prob:
@@ -27,8 +26,8 @@ object Prob:
 
   extension [T <: Tuple: Labels](t: Tensor[T, Prob])
 
-    def exp: Tensor[T, Float32] = TensorOps.exp(t) // Lose Prob if we exp again
-    def log: Tensor[T, LogProb] = TensorOps.log(t)
+    def exp: Tensor[T, Float32] = Tensor.exp(t) // Lose Prob if we exp again
+    def log: Tensor[T, LogProb] = Tensor.log(t)
     def asFloat: Tensor[T, Float32] = t
 
 trait Distribution[EventShape <: Tuple: Labels, V]:
