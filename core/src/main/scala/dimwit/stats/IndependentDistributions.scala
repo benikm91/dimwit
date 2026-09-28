@@ -71,11 +71,16 @@ class Uniform[T <: Tuple: Labels, V: IsFloating](val low: Tensor[T, V], val high
       Jax.jrandom.uniform(key.jaxKey, shape = low.shape.dimensions.toPythonProxy, minval = low.jaxValue, maxval = high.jaxValue)
     )
 
-/** Uniform distribution */
+/** Discrete uniform distribution over the integers in the half-open interval `[min, max)`,
+  *  i.e. min is inclusive, max exclusive.
+  */
 class DiscreteUniform[T <: Tuple: Labels](val min: Tensor[T, Int32], val max: Tensor[T, Int32]) extends IndependentDistribution[T, Int32]:
 
   override def elementWiseLogProb(x: Tensor[T, Int32]): Tensor[T, LogProb] =
-    liftPyTensor(jstats.randint.logpmf(x.jaxValue, low = min.jaxValue, high = max.jaxValue))
+    val logProb = LogProb(-(max - min).asFloat32.log)
+    val inSupport = (x >= min) and (x < max)
+    val negInf = LogProb(Tensor(x.shape).fill(Float.NegativeInfinity))
+    where(inSupport, logProb, negInf)
 
   override def sample(key: Random.Key): Tensor[T, Int32] =
     liftPyTensor(
@@ -88,11 +93,6 @@ object Uniform:
   def apply[T <: Tuple: Labels, V: IsFloating](low: Tensor[T, V], high: Tensor[T, V]): Uniform[T, V] =
     require(low.shape.dimensions == high.shape.dimensions, "Low and high must have the same dimensions")
     new Uniform(low, high)
-
-  /** Create a discrete Uniform distribution from low and high int tensors */
-  def apply[T <: Tuple: Labels](min: Tensor[T, Int32], max: Tensor[T, Int32]): DiscreteUniform[T] =
-    require(min.shape.dimensions == max.shape.dimensions, "min and max must have the same dimensions")
-    new DiscreteUniform(min, max)
 
 /** Bernoulli distribution */
 class Bernoulli[T <: Tuple: Labels](val probs: Tensor[T, Prob]) extends IndependentDistribution[T, Bool]:

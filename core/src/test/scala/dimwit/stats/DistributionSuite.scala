@@ -110,6 +110,51 @@ class DistributionSuite extends DimwitTest:
       val expectedMeans = (uniform.low + uniform.high) *! 0.5f
       sampleMeans should approxEqual(expectedMeans, 0.2f)
 
+  describe("DiscreteUniform Distribution"):
+    it("logProbs is -log(max - min) inside [min, max)"):
+      val min = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(0, -3, 2))
+      val max = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(4, 3, 10))
+      val x = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(1, 0, 9))
+
+      val dist = DiscreteUniform(min, max)
+      val scalaLogProbs = dist.elementWiseLogProb(x)
+      val expectedLogProbs = Tensor(Shape(Axis[A] -> 3)).fromArray(
+        Array(-math.log(4).toFloat, -math.log(6).toFloat, -math.log(8).toFloat)
+      )
+      scalaLogProbs.asFloat should approxEqual(expectedLogProbs)
+
+    it("logProb is -inf outside [min, max)"):
+      val min = Tensor(Shape(Axis[A] -> 2)).fromArray(Array(0, 0))
+      val max = Tensor(Shape(Axis[A] -> 2)).fromArray(Array(4, 4))
+      val x = Tensor(Shape(Axis[A] -> 2)).fromArray(Array(-1, 4))
+
+      val dist = DiscreteUniform(min, max)
+      val logProbs = dist.elementWiseLogProb(x)
+      logProbs.asFloat.toArray.foreach(v => v should be(Float.NegativeInfinity))
+
+    it("sample means approximates means"):
+      val discreteUniform = DiscreteUniform(
+        Tensor(Shape(Axis[A] -> 2)).fromArray(Array(-2, 0)),
+        Tensor(Shape(Axis[A] -> 2)).fromArray(Array(3, 10))
+      )
+      val key = Random.Key(42)
+      val samples = key.splitvmap(Axis[Samples] -> 10000)(k => discreteUniform.sample(k))
+      val sampleMeans = samples.asFloat32.mean(Axis[Samples])
+      // max is exclusive, so the mean is (min + max - 1) / 2
+      val expectedMeans = Tensor(Shape(Axis[A] -> 2)).fromArray(Array(0.0f, 4.5f))
+      sampleMeans should approxEqual(expectedMeans, 0.2f)
+
+    it("samples strictly respect bounds"):
+      val dist = DiscreteUniform(
+        Tensor(Shape(Axis[A] -> 2)).fromArray(Array(-2, 0)),
+        Tensor(Shape(Axis[A] -> 2)).fromArray(Array(3, 10))
+      )
+      val key = Random.Key(42)
+      val samples = key.splitvmap(Axis[Samples] -> 10000)(k => dist.sample(k))
+
+      (samples.min(Axis[Samples]) >= dist.min).all.item shouldBe true
+      (samples.max(Axis[Samples]) < dist.max).all.item shouldBe true
+
   describe("Bernoulli"):
     it("logProbs matches JAX"):
       val probs = Tensor(Shape(Axis[A] -> 3)).fromArray(Array(0.3f, 0.5f, 0.8f))
