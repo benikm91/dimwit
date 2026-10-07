@@ -25,12 +25,12 @@ import scala.annotation.implicitNotFound
 private[dimwit] object FunctionalOps:
 
   /** Prepends the axis `L` to every tensor of the tensor tree `FOut`: the result
-    * type of a `vmap`/`zipvmap` whose body returned `FOut`.
+    * type of a `vmap`/`zipvmap` whose body returned `FOut`, or the outputs of a `scan`.
     *
-    * Instances cover tensors, tuples, named tuples and any nesting of those.
+    * Instances cover tensors, tuples, named tuples, any nesting of those, and `Unit` (no output).
     */
   @implicitNotFound(
-    "Cannot prepend Axis[${L}] to ${FOut}. A vmap/zipvmap body may return a Tensor, a tuple, a named tuple, or any nesting of those"
+    "Cannot prepend Axis[${L}] to ${FOut}. A vmap/zipvmap/scan body may return a Tensor, a tuple, a named tuple, or any nesting of those"
   )
   trait PrependAxis[L, FOut]:
     type Out
@@ -44,6 +44,8 @@ private[dimwit] object FunctionalOps:
         type Out = Out0
 
     given tensor[L, Shape <: Tuple, V]: Aux[L, Tensor[Shape, V], Tensor[L *: Shape, V]] = instance
+
+    given unit[L]: Aux[L, Unit, Unit] = instance
 
     given emptyTuple[L]: Aux[L, EmptyTuple, EmptyTuple] = instance
 
@@ -70,6 +72,15 @@ private[dimwit] object FunctionalOps:
 
     type ShapesOf[Tensors <: Tuple] = Tuple.Map[Tensors, ExtractShape]
     type ValuesOf[Tensors <: Tuple] = Tuple.Map[Tensors, ExtractValue]
+
+    /** The JAX arrays `slices` as the tuple of tensors they are: slices along `L` of tensors with the shapes `Shapes`. */
+    private[dimwit] def slicesOf[Shapes <: Tuple, L, Values <: Tuple](
+        slices: Seq[Jax.PyDynamic],
+        ev: SharedAxisRemover[Shapes, L]
+    ): TensorsOf[ev.RemainingAxes, Values] =
+      val tensors = slices.zip(ev.shapesLabels).map: (jaxArr, labels) =>
+        Tensor(jaxArr)(using LabelsImpl(labels))
+      Tuple.fromArray(tensors.toArray).asInstanceOf[TensorsOf[ev.RemainingAxes, Values]]
 
     /** Zips the given given tensors along the specified axis
       * and applies the function `f` to the zipped tensors.
@@ -103,11 +114,7 @@ private[dimwit] object FunctionalOps:
     ): prependAxis.Out =
       val fpy = (args: py.Dynamic) =>
         OnError.traceStack:
-          val tensorList = args.as[Seq[py.Dynamic]].zip(ev.shapesLabels).map: (jaxArr, labels) =>
-            Tensor(jaxArr)(using LabelsImpl(labels))
-
-          val inputTuple = Tuple.fromArray(tensorList.toArray)
-          val result = f(inputTuple.asInstanceOf[TensorsOf[ev.RemainingAxes, ValuesOf[Inputs]]])
+          val result = f(slicesOf[ShapesOf[Inputs], L, ValuesOf[Inputs]](args.as[Seq[py.Dynamic]], ev))
           toPyTree.toPyTree(result)
 
       val jaxInputs = py.Dynamic.global.tuple(tensors.toArray.map(_.asInstanceOf[Tensor[?, ?]].jaxValue).toPythonProxy)

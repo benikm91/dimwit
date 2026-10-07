@@ -656,6 +656,68 @@ println(s"Reduced A: ${summedA}")
 println(s"Reduced B: ${summedB}")
 ```
 
+### Loops and Branches: scan, foriLoop, whileLoop, cond
+
+A Scala loop inside `jit` is unrolled while tracing: 100 iterations become 100 copies of the body,
+and the compile time grows with them. `scan`, `foriLoop`, `whileLoop` and `cond` wrap the `jax.lax`
+primitives of the same names, whose body is traced once. They work eagerly and under `jit`.
+
+The state carried from one iteration to the next may be any tensor tree (a tensor, a tuple, a case class).
+Since the body is traced once, it must not change the shape of the carry.
+
+```scala mdoc:reset:silent
+import dimwit.*
+
+trait Time derives Label
+trait Feature derives Label
+
+val signal = Tensor1(Axis[Time]).fromArray(Array(1.0f, 3.0f, 2.0f, 6.0f))
+
+// scan: loop over the axis Time of a tensor. The body gets the carry and the slice at each
+// position along Time, and returns the next carry and an output; the outputs are stacked along Time.
+val (lastAverage, averages) = scan(Axis[Time])(Tensor0(0.0f), signal): (average, x) =>
+  val next = average * 0.5f + x * 0.5f
+  (next, next)
+// averages: Tensor1[Time, Float32] = [0.5, 1.75, 1.875, 3.9375]
+
+// scan over several tensors along the same axis, like zipvmap; () means no outputs
+val weights = Tensor1(Axis[Time]).fromArray(Array(1.0f, 1.0f, 2.0f, 2.0f))
+val (weightedSum, _) = scan(Axis[Time])(Tensor0(0.0f), (signal, weights)):
+  case (sum, (x, weight)) => (sum + x * weight, ())
+
+// foriLoop: loop over the indices lower until upper. The index is a traced Tensor0[Int32],
+// e.g. to write a window at it
+val squares = foriLoop(0, 4)(Tensor(Shape(Axis[Time] -> 4)).fill(0)): (i, buffer) =>
+  buffer.set(Axis[Time].at(i, 1))((i * i).broadcastTo(Shape(Axis[Time] -> 1)))
+// squares: [0, 1, 4, 9]
+
+// whileLoop: loop while a condition holds, here Newton's method for the square root of 2
+val (root, iterations) = whileLoop((Tensor0(1.0f), Tensor0(0)))((x, _) => (x * x - Tensor0(2.0f)).abs > Tensor0(1e-5f)):
+  case (x, n) => ((x + Tensor0(2.0f) / x) * 0.5f, n + Tensor0(1))
+
+// cond: choose a branch by a predicate that may be traced, unlike Scala's if;
+// both branches must return the same shapes
+val relu = jit((x: Tensor0[Float32]) => cond(x > Tensor0(0.0f))(x)(Tensor0(0.0f)))
+```
+
+`scan` and `foriLoop` are differentiable, so `Autodiff.grad` through them gives the same gradient as through the
+unrolled loop. JAX cannot reverse-differentiate `whileLoop`, since the number of iterations is only known at runtime;
+use forward mode (`Autodiff.jacFwd`) for it instead.
+
+```scala mdoc:fail
+// ERROR: the scanned axis must exist in the tensor
+val notAnAxis = scan(Axis[Feature])(Tensor0(0.0f), signal)((sum, x) => (sum + x, ()))
+```
+
+```scala mdoc
+// ERROR at runtime: the body must not change the shape of the carry.
+// (The error is raised inside the traced body; here only its message is shown.)
+val shapeError = scala.util.Try:
+  scan(Axis[Time])(Tensor1(Axis[Feature]).fromArray(Array(0.0f)), signal): (state, x) =>
+    (concatenate(state, state, Axis[Feature]), ())
+.failed.get.getMessage.linesIterator.map(_.trim).find(_.contains("requirement failed")).get
+```
+
 ---
 
 ## Automatic Differentiation
