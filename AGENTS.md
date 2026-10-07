@@ -647,11 +647,11 @@ println(s"Transposed shape: ${transposed.shape}")
 val vec1d = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
 val vec2d = vec1d.appendAxis(Axis[B])  // Add new axis B
 
-// Take (indexing with single index)
+// Slice at an index (removes the axis)
 val firstRow = original.slice(Axis[A].at(0))
 val secondRow = original.slice(Axis[A].at(1))
 
-// Take (indexing with range)
+// Slice at a range (keeps the axis)
 val data3d = Tensor(Shape3(Axis[A] -> 5, Axis[B] -> 3, Axis[C] -> 4)).fill(1.0f)
 val middleSlice = data3d.slice(Axis[A].at(1 until 4))  // Takes indices 1, 2, 3
 println(s"Middle slice shape: ${middleSlice.shape}")  // Shape(A -> 3, B -> 3, C -> 4)
@@ -660,6 +660,96 @@ println(s"Middle slice shape: ${middleSlice.shape}")  // Shape(A -> 3, B -> 3, C
 val t1 = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f))
 val t2 = Tensor1(Axis[A]).fromArray(Array(3.0f, 4.0f))
 val concatenated = concatenate(t1, t2, Axis[A])
+```
+
+### Slicing and Setting
+
+Every selection along an axis is an `Axis[L].at(...)` selector. `slice` reads the selection,
+`set` returns a copy with the selection overwritten. A selector selects along exactly one axis;
+to select along several axes, chain the calls.
+
+```scala
+// Shape: A=4, B=3, the value at (a, b) is 10a + b
+val grid = Tensor2(Axis[A], Axis[B]).fromArray(Array.tabulate(4, 3)((a, b) => 10.0f * a + b))
+
+// Index: removes the axis
+val gridRow: Tensor1[B, Float32] = grid.slice(Axis[A].at(1)) // [10, 11, 12]
+
+// Range, sequence or tuple of indices: keeps the axis, with the number of indices as extent
+val gridRows = grid.slice(Axis[A].at(1 until 3)) // rows 1, 2
+val gridPicked = grid.slice(Axis[A].at(Seq(3, 0))) // rows 3, 0
+val gridTupled = grid.slice(Axis[A].at((3, 0))) // the same, note the double parentheses
+
+// Vector of indices, like jnp.take: the axis is replaced by the axis of the indices
+val order = Tensor1(Axis[C]).fromArray(Array(2, 0, 2))
+val gridGathered: Tensor2[A, C, Float32] = grid.slice(Axis[B].at(order))
+
+// Window of static size, like jax.lax.dynamic_slice: keeps the axis with the window size as extent
+val gridWindow = grid.slice(Axis[A].at(1, 2)) // rows 1, 2
+
+// Several axes: chain the calls
+val gridEntry: Tensor0[Float32] = grid.slice(Axis[A].at(1)).slice(Axis[B].at(2)) // 12
+
+// set takes a value with the shape of the selection
+val gridZeroRow = grid.set(Axis[A].at(0))(Tensor1(Axis[B]).fromArray(Array(0.0f, 0.0f, 0.0f)))
+val gridZeroWindow = grid.set(Axis[A].at(1, 2))(Tensor(Shape2(Axis[A] -> 2, Axis[B] -> 3)).fill(0.0f))
+```
+
+The index of `Axis[L].at(index)` and the start of a window may also be a `Tensor0[Int32]`, also a traced one,
+e.g. a loop position under `jit`. Its value is then only known at runtime, but the window size stays static:
+
+```scala
+// Write a row of ones into a buffer at a position known only at runtime
+val writeRow = jit((buffer: Tensor2[A, B, Float32], position: Tensor0[Int32]) =>
+  buffer.set(Axis[A].at(position, 1))(Tensor(Shape2(Axis[A] -> 1, Axis[B] -> 3)).fill(1.0f))
+)
+val gridWritten = writeRow(grid, Tensor0(2)) // row 2 is now ones
+```
+
+```scala
+// ERROR: a selector selects along one axis, chain the calls instead
+val gridTuple = grid.slice((Axis[A].at(1), Axis[B].at(2)))
+// error:
+// value slice is not a member of dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
+//   dimwit.tensor.DType.Float32].
+// An extension method was tried, but could not be fully constructed:
+// 
+//     dimwit.slice()
+// 
+//     failed with:
+// 
+//         value slice: <overloaded dimwit.slice> does not take parameters
+// val gridTuple = grid.slice((Axis[A].at(1), Axis[B].at(2)))
+//                 ^^^^^^^^^^
+```
+
+```scala
+// ERROR: an index removes the axis, so the value must not have it
+val gridWrongValue = grid.set(Axis[A].at(0))(grid)
+// error:
+// Found:    (MdocApp1.this.grid :
+//   dimwit.tensor.Tensor2[MdocApp1.this.A, MdocApp1.this.B,
+//     dimwit.tensor.DType.Float32]
+// )
+// Required: dimwit.tensor.Tensor[?1.RemainingAxes, dimwit.tensor.DType.Float32]
+// 
+// where:    ?1 is an unknown value of type dimwit.tensor.ShapeTypeHelpers.AxisRemover.Aux[
+//   (MdocApp1.this.A, MdocApp1.this.B), MdocApp1.this.A, MdocApp1.this.B *:
+//   EmptyTuple.type]
+// 
+// val gridWrongValue = grid.set(Axis[A].at(0))(grid)
+//                                              ^^^^
+```
+
+```scala
+// ERROR at runtime: a window with an Int start must lie inside the axis
+grid.slice(Axis[A].at(3, 2))
+// java.lang.IllegalArgumentException: requirement failed: Window 3 until 5 is out of bounds for axis A of size 4
+// 	at scala.Predef$.require(Predef.scala:389)
+// 	at dimwit.tensor.tensorops.StructuralExtensions$.windowExtents(StructuralOps.scala:719)
+// 	at dimwit.tensor.tensorops.StructuralExtensions$.slice(StructuralOps.scala:605)
+// 	at dimwit.package$.slice(package.scala:80)
+// 	at repl.MdocSession$MdocApp17.$init$$$anonfun$3(AGENTS.md:719)
 ```
 
 ---
