@@ -90,10 +90,10 @@ object LogisticRegression:
     val testPerm = perm.slice(Axis[Sample].at(splitIndex until numSamples))
 
     // Use the permutations to get our training and validation data
-    val trainingDataUnnormalized = dataInitial.take(Axis[Sample])(trainPerm)
-    val valDataUnnormalized = dataInitial.take(Axis[Sample])(testPerm)
-    val trainLabels = labelsInitial.take(Axis[Sample])(trainPerm)
-    val valLabels = labelsInitial.take(Axis[Sample])(testPerm)
+    val trainingDataUnnormalized = dataInitial.slice(Axis[Sample].at(trainPerm))
+    val valDataUnnormalized = dataInitial.slice(Axis[Sample].at(testPerm))
+    val trainLabels = labelsInitial.slice(Axis[Sample].at(trainPerm))
+    val valLabels = labelsInitial.slice(Axis[Sample].at(testPerm))
 
     def calcMeanAndStd(t: Tensor2[Sample, Feature, Float32]): (Tensor1[Feature, Float32], Tensor1[Feature, Float32]) =
       val mean = t.vmap(Axis[Feature])(_.mean)

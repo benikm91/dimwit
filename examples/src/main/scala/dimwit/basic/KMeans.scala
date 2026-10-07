@@ -114,7 +114,7 @@ trait CenterBasedClustering(
       key: Random.Key
   ): Tensor2[Cluster, Dim, Float32] =
     val perm = Random.permutation(points.shape.extent(Axis[Point]))(key)
-    points.take(Axis[Point])(perm.slice(Axis[Point].at(0 until nClusters))).relabel(Axis[Point].as(Axis[Cluster]))
+    points.slice(Axis[Point].at(perm.slice(Axis[Point].at(0 until nClusters)))).relabel(Axis[Point].as(Axis[Cluster]))
 
 /** Example implementation of the K-Means clustering algorithm, showcasing the use
   * of Named Tensors for clear and type-safe code.

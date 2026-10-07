@@ -8,14 +8,14 @@ import dimwit.tensor.AxisAtIndex
 import dimwit.tensor.AxisAtIndices
 import dimwit.tensor.AxisAtRange
 import dimwit.tensor.AxisAtTensorIndex
+import dimwit.tensor.AxisAtTensorIndices
+import dimwit.tensor.AxisAtWindow
 import dimwit.tensor.AxisAtTupleIndices
 import dimwit.tensor.AxisExtent
 import dimwit.tensor.DType.Bool
-import dimwit.tensor.DType.Int32
 import dimwit.tensor.Label
 import dimwit.tensor.Labels
 import dimwit.tensor.Shape
-import dimwit.tensor.ShapeTypeHelpers.AxesConditionalRemover
 import dimwit.tensor.ShapeTypeHelpers.AxesMerger
 import dimwit.tensor.ShapeTypeHelpers.AxisIndex
 import dimwit.tensor.ShapeTypeHelpers.AxisIndices
@@ -95,46 +95,6 @@ private[dimwit] object StructuralOps:
     ): AxisSwapper.Aux[H *: T, L1, L2, H *: O] = AxisSwapper.instance
 
   private[dimwit] object Util:
-
-    type ExtractLabel[X] = X match
-      case AxisAtIndex[l]           => l
-      case AxisAtRange[l]           => l
-      case AxisAtIndices[l]         => l
-      case AxisAtTupleIndices[l, ?] => l
-      case AxisAtTensorIndex[l]     => l
-    type ExtractLabels[Inputs <: Tuple] = Tuple.Map[Inputs, ExtractLabel]
-
-    trait SliceLabelExtractor[Inputs <: Tuple, Out <: Tuple]
-
-    object SliceLabelExtractor:
-
-      given emptyTuple: SliceLabelExtractor[EmptyTuple, EmptyTuple] =
-        new SliceLabelExtractor[EmptyTuple, EmptyTuple] {}
-
-      given atIndexTuple[L, Tail <: Tuple, TailOut <: Tuple](using
-          tailExt: SliceLabelExtractor[Tail, TailOut]
-      ): SliceLabelExtractor[AxisAtIndex[L] *: Tail, L *: TailOut] =
-        new SliceLabelExtractor[AxisAtIndex[L] *: Tail, L *: TailOut] {}
-
-      given atRangeTuple[L, Tail <: Tuple, TailOut <: Tuple](using
-          tailExt: SliceLabelExtractor[Tail, TailOut]
-      ): SliceLabelExtractor[AxisAtRange[L] *: Tail, TailOut] =
-        new SliceLabelExtractor[AxisAtRange[L] *: Tail, TailOut] {}
-
-      given atIndicesTuple[L, Tail <: Tuple, TailOut <: Tuple](using
-          tailExt: SliceLabelExtractor[Tail, TailOut]
-      ): SliceLabelExtractor[AxisAtIndices[L] *: Tail, TailOut] =
-        new SliceLabelExtractor[AxisAtIndices[L] *: Tail, TailOut] {}
-
-      given atTupleIndicesTuple[L, I <: NonEmptyTuple, Tail <: Tuple, TailOut <: Tuple](using
-          tailExt: SliceLabelExtractor[Tail, TailOut]
-      ): SliceLabelExtractor[AxisAtTupleIndices[L, I] *: Tail, TailOut] =
-        new SliceLabelExtractor[AxisAtTupleIndices[L, I] *: Tail, TailOut] {}
-
-      given atTensorIndexTuple[L, Tail <: Tuple, TailOut <: Tuple](using
-          tailExt: SliceLabelExtractor[Tail, TailOut]
-      ): SliceLabelExtractor[AxisAtTensorIndex[L] *: Tail, L *: TailOut] =
-        new SliceLabelExtractor[AxisAtTensorIndex[L] *: Tail, L *: TailOut] {}
 
     @implicitNotFound("The axis ${L} is already present in the tensor shape ${T}.")
     trait AxisAbsent[T, L]
@@ -366,6 +326,17 @@ private[dimwit] object StructuralExtensions:
   import StructuralOps.*
   import StructuralOps.Util.*
 
+  /** The Python list of `indices`. */
+  private def pyIndices(indices: Seq[Int]): py.Any =
+    indices.map(py.Any.from).toPythonCopy // TODO find out why Copy is needed here
+
+  /** Requires that `value` has the shape `extents` of the selection it is written to, so that JAX does not broadcast it. */
+  private def requireSelectionShape(value: Tensor[?, ?], extents: Seq[Int]): Unit =
+    require(
+      value.shape.dimensions == extents,
+      s"Cannot set a value of shape ${value.shape} into a selection of shape ${value.axes.zip(extents).map((a, n) => s"$a -> $n").mkString("(", ", ", ")")}"
+    )
+
   extension [T <: Tuple, V](tensor: Tensor[T, V])
 
     /** takes a concatenated tensor and splits it into a tuple of tensors along the specified axis,
@@ -535,41 +506,6 @@ private[dimwit] object StructuralExtensions:
     ): maker.Out =
       split(AxisAtTupleIndices(selector.axis, Tuple1(selector.index)))
 
-    private def calcPyIndices[Inputs <: Tuple](
-        inputs: Inputs,
-        targetDims: List[Int]
-    ) =
-
-      val PySlice = py.Dynamic.global.slice
-      val Colon = PySlice(py.None)
-      val rank = tensor.shape.rank
-      val indicesBuffer = collection.mutable.ArrayBuffer.fill[py.Any](rank)(Colon)
-
-      val inputList = inputs.toList.asInstanceOf[List[Any]]
-
-      targetDims.zip(inputList).foreach { case (dimIndex, input) =>
-        val dimSize = tensor.shape.dimensions(dimIndex)
-        input match
-          case AxisAtIndex(_, idx) =>
-            indicesBuffer(dimIndex) = py.Any.from(idx)
-          case AxisAtRange(_, range) =>
-            require(range.isEmpty || (range.min >= 0 && range.max < dimSize), s"$range is out of bounds for axis of size $dimSize")
-            // map Scala Range to Python Range which is exclusive
-            val stop = range match
-              case r: Range.Inclusive => r.end + r.step.sign
-              case r: Range.Exclusive => r.end
-            // the range is in bounds, so a negative stop can only mean "before the first element", which Python spells as None
-            indicesBuffer(dimIndex) = PySlice(range.start, if stop < 0 then py.None else py.Any.from(stop), range.step)
-          case AxisAtIndices(_, indices) =>
-            indicesBuffer(dimIndex) = indices.map(py.Any.from).toPythonCopy // TODO find out why Copy is needed here
-          case AxisAtTupleIndices(_, indices) =>
-            indicesBuffer(dimIndex) = indices.toList.asInstanceOf[List[Int]].map(py.Any.from).toPythonCopy
-          case AxisAtTensorIndex(_, tensorIdx) =>
-            indicesBuffer(dimIndex) = tensorIdx.jaxValue
-      }
-
-      Jax.Dynamic.global.tuple(indicesBuffer.toSeq.toPythonProxy)
-
     /** Unstacks the tensor along the specified axis at the given indices, returning a sequence of tensors corresponding to the splits.
       *
       * @param unstackAxis the axis to split, specified as an Axis (e.g. Axis[Ax1])
@@ -594,156 +530,203 @@ private[dimwit] object StructuralExtensions:
       val res = Jax.jnp.split(tensor.jaxValue, chunkSize, axis = axisIndex.index).as[Seq[Jax.PyDynamic]]
       res.map(x => Tensor[T, V](x))
 
-    /** Slices the tensor according to the specified inputs,
-      * removing the specified labels from the resulting tensor.
+    /** Slice the tensor at an index along an axis, removing the axis.
       *
-      * @param inputs A tuple of inputs specifying how to slice the tensor.
-      * @return The sliced tensor with the specified labels removed from its shape.
+      * @param selector of the form `Axis[L].at(index)`
       */
-    def slice[Inputs <: Tuple, LabelsToRemove <: Tuple](
-        inputs: Inputs
-    )(using
-        sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Inputs]],
+    def slice[L](selector: AxisAtIndex[L])(using
+        ev: AxisRemover[T, L],
         labels: Labels[ev.RemainingAxes]
     ): Tensor[ev.RemainingAxes, V] =
-      val pyIndices = tensor.calcPyIndices(inputs, ev.indices)
-      Tensor(tensor.jaxValue.itemAt(pyIndices))
+      Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(ev.index, py.Any.from(selector.index))))
 
-    /** Slice the given tensor, specifying the axis and index to slice at.
+    /** Slice the tensor at an index given by a tensor along an axis, removing the axis.
+      * The index may be traced, e.g. a loop index under `jit`.
       *
-      * @param selector An AxisAtIndex specifying the axis and index to slice at.
-      * @return A sliced tensor with the specified axis removed from its shape.
+      * @param selector of the form `Axis[L].at(index: Tensor0[Int32])`
       */
-    def slice[L, LabelsToRemove <: Tuple](
-        selector: AxisAtIndex[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndex[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndex[L]]]],
+    def slice[L](selector: AxisAtTensorIndex[L])(using
+        ev: AxisRemover[T, L],
         labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] = slice(Tuple1(selector))
+    ): Tensor[ev.RemainingAxes, V] =
+      Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(ev.index, selector.index.jaxValue)))
 
-    /** Slice the given tensor, specifying the axis and a given range to slice at.
+    /** Slice the tensor at a range along an axis, keeping the axis with the length of the range as extent.
       *
-      * @param selector An AxisAtRange specifying the axis and range to slice at.
-      * @return A sliced tensor with the specified axis removed from its shape.
+      * @param selector of the form `Axis[L].at(range)`
       */
-    def slice[L, LabelsToRemove <: Tuple](
-        selector: AxisAtRange[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtRange[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtRange[L]]]],
-        labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] = slice(Tuple1(selector))
+    def slice[L](selector: AxisAtRange[L])(using
+        axisIndex: AxisIndex[T, L],
+        labels: Labels[T]
+    ): Tensor[T, V] =
+      Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, tensor.pyRange(selector.range, axisIndex.index))))
 
-    /** Slice the given tensor, specifying the axis and a list of indices to slice at.
+    /** Slice the tensor at a sequence of indices along an axis, keeping the axis with the number of indices as extent.
       *
-      * @param selector An AxisAtIndices specifying the axis and indices to slice at.
-      * @return A sliced tensor with the specified axis removed from its shape.
+      * @param selector of the form `Axis[L].at(Seq(i, j, ...))`
       */
-    def slice[L, LabelsToRemove <: Tuple](
-        selector: AxisAtIndices[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndices[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndices[L]]]],
-        labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] = slice(Tuple1(selector))
+    def slice[L](selector: AxisAtIndices[L])(using
+        axisIndex: AxisIndex[T, L],
+        labels: Labels[T]
+    ): Tensor[T, V] =
+      Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices))))
 
-    /** Slice the given tensor, specifying the axis and a tensor of indices to slice at.
+    /** Slice the tensor at a tuple of indices along an axis, keeping the axis with the number of indices as extent.
       *
-      * @param selector An AxisAtTensorIndex specifying the axis and tensor of indices to slice at.
-      * @return A sliced tensor with the specified axis removed from its shape.
+      * @param selector of the form `Axis[L].at((i, j, ...))`
       */
-    def slice[L, LabelsToRemove <: Tuple](
-        selector: AxisAtTensorIndex[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtTensorIndex[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtTensorIndex[L]]]],
-        labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] = slice(Tuple1(selector))
+    def slice[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
+        axisIndex: AxisIndex[T, L],
+        labels: Labels[T]
+    ): Tensor[T, V] =
+      Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices.toList.asInstanceOf[List[Int]]))))
 
-    /** Slice the given tensor, specifying the axis and a tuple of indices to slice at.
+    /** Slice the tensor at the indices of a vector along an axis, like `jnp.take`.
+      * The axis is replaced by the axis of the indices. Out-of-bounds indices yield NaN for floating tensors.
       *
-      * @param selector An AxisAtTupleIndices specifying the axis and tuple of indices to slice at.
-      * @return A sliced tensor with the specified axis removed from its shape.
+      * @param selector of the form `Axis[L].at(indices: Tensor1[L2, Int32])`
       */
-    def slice[L, U <: NonEmptyTuple, LabelsToRemove <: Tuple](
-        selector: AxisAtTupleIndices[L, U]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtTupleIndices[L, U]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtTupleIndices[L, U]]]],
-        labels: Labels[ev.RemainingAxes]
-    ): Tensor[ev.RemainingAxes, V] = slice(Tuple1(selector))
-
-    def take[L1, L2: Label](
-        axis: Axis[L1]
-    )(
-        indices: Tensor1[L2, Int32]
-    )(using
-        ev: AxisReplacer[T, L1, L2],
+    def slice[L, L2](selector: AxisAtTensorIndices[L, L2])(using
+        ev: AxisReplacer[T, L, L2],
         labels: Labels[ev.NewShape]
     ): Tensor[ev.NewShape, V] =
-      val result = Jax.jnp.take(tensor.jaxValue, indices.jaxValue, axis = ev.index)
-      Tensor(result)
+      Tensor(Jax.jnp.take(tensor.jaxValue, selector.indices.jaxValue, axis = ev.index))
 
-    def set[Inputs <: Tuple, LabelsToRemove <: Tuple](
-        inputs: Inputs
-    )(using
-        sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Inputs]],
+    /** Slice a window of static size along an axis, like `jax.lax.dynamic_slice`.
+      * Its start may be a tensor, also a traced one, e.g. a loop index under `jit`.
+      *
+      * @param selector of the form `Axis[L].at(start, windowSize)`
+      * @return The window, which keeps the axis with extent `windowSize`.
+      */
+    def slice[L](selector: AxisAtWindow[L])(using
+        axisIndex: AxisIndex[T, L],
+        labels: Labels[T]
+    ): Tensor[T, V] =
+      val window = tensor.windowExtents(selector, axisIndex.index)
+      Tensor(Jax.lax.dynamic_slice(tensor.jaxValue, tensor.windowStarts(selector, axisIndex.index), window.toPythonCopy))
+
+    /** Overwrite the tensor at an index along an axis.
+      *
+      * @param selector of the form `Axis[L].at(index)`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L](selector: AxisAtIndex[L])(using
+        ev: AxisRemover[T, L],
         labels: Labels[T]
     )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] =
-      val pyIndices = tensor.calcPyIndices(inputs, ev.indices)
-      val result = tensor.jaxValue.at.itemAt(pyIndices).set(value.jaxValue)
-      Tensor(result)
+      requireSelectionShape(value, tensor.shape.dimensions.patch(ev.index, Nil, 1))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, py.Any.from(selector.index))).set(value.jaxValue))
 
-    // Convenience overload for Float
-    def set[Inputs <: Tuple, LabelsToRemove <: Tuple](
-        inputs: Inputs
-    )(using
-        sliceExtractor: SliceLabelExtractor[Inputs, LabelsToRemove],
-        ev: AxesConditionalRemover.Aux[T, LabelsToRemove, ExtractLabels[Inputs], EmptyTuple],
+    /** Overwrite the tensor at an index given by a tensor along an axis. The index may be traced.
+      * An out-of-bounds index leaves the tensor unchanged.
+      *
+      * @param selector of the form `Axis[L].at(index: Tensor0[Int32])`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L](selector: AxisAtTensorIndex[L])(using
+        ev: AxisRemover[T, L],
         labels: Labels[T]
-    )(value: Float): Tensor[T, V] =
-      val pyIndices = tensor.calcPyIndices(inputs, ev.indices)
-      val result = tensor.jaxValue.at.itemAt(pyIndices).set(value)
-      Tensor(result)
+    )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] =
+      requireSelectionShape(value, tensor.shape.dimensions.patch(ev.index, Nil, 1))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, selector.index.jaxValue)).set(value.jaxValue))
 
-    // Convenience overload for AxisAtIndex
-    def set[L, LabelsToRemove <: Tuple](
-        selector: AxisAtIndex[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndex[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndex[L]]]],
+    /** Overwrite the tensor at a range along an axis.
+      *
+      * @param selector of the form `Axis[L].at(range)`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L](selector: AxisAtRange[L])(using
+        axisIndex: AxisIndex[T, L],
         labels: Labels[T]
-    )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+    )(value: Tensor[T, V]): Tensor[T, V] =
+      requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, selector.range.length))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, tensor.pyRange(selector.range, axisIndex.index))).set(value.jaxValue))
 
-    // Convenience overload for AxisAtRange
-    def set[L, LabelsToRemove <: Tuple](
-        selector: AxisAtRange[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtRange[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtRange[L]]]],
+    /** Overwrite the tensor at a sequence of indices along an axis.
+      *
+      * @param selector of the form `Axis[L].at(Seq(i, j, ...))`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L](selector: AxisAtIndices[L])(using
+        axisIndex: AxisIndex[T, L],
         labels: Labels[T]
-    )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+    )(value: Tensor[T, V]): Tensor[T, V] =
+      requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, selector.indices.length))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices))).set(value.jaxValue))
 
-    // Convenience overload for AxisAtIndices
-    def set[L, LabelsToRemove <: Tuple](
-        selector: AxisAtIndices[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtIndices[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtIndices[L]]]],
+    /** Overwrite the tensor at a tuple of indices along an axis.
+      *
+      * @param selector of the form `Axis[L].at((i, j, ...))`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
+        axisIndex: AxisIndex[T, L],
         labels: Labels[T]
-    )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+    )(value: Tensor[T, V]): Tensor[T, V] =
+      val indices = selector.indices.toList.asInstanceOf[List[Int]]
+      requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, indices.length))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(indices))).set(value.jaxValue))
 
-    // Convenience overload for AxisAtTensorIndex
-    def set[L, LabelsToRemove <: Tuple](
-        selector: AxisAtTensorIndex[L]
-    )(using
-        sliceExtractor: SliceLabelExtractor[Tuple1[AxisAtTensorIndex[L]], LabelsToRemove],
-        ev: AxesConditionalRemover[T, LabelsToRemove, ExtractLabels[Tuple1[AxisAtTensorIndex[L]]]],
+    /** Overwrite the tensor at the indices of a vector along an axis. Out-of-bounds indices are skipped;
+      * for repeated indices, it is unspecified which of their values is written.
+      *
+      * @param selector of the form `Axis[L].at(indices: Tensor1[L2, Int32])`
+      * @param value the new values, with the shape of `tensor.slice(selector)`
+      */
+    def set[L, L2](selector: AxisAtTensorIndices[L, L2])(using
+        ev: AxisReplacer[T, L, L2],
         labels: Labels[T]
-    )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] = set(Tuple1(selector))(value)
+    )(value: Tensor[ev.NewShape, V]): Tensor[T, V] =
+      requireSelectionShape(value, tensor.shape.dimensions.updated(ev.index, selector.indices.shape.dimensions.head))
+      Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, selector.indices.jaxValue)).set(value.jaxValue))
+
+    /** Overwrite a window of static size along an axis, like `jax.lax.dynamic_update_slice`.
+      * Its start may be a tensor, also a traced one, e.g. a loop index under `jit`.
+      *
+      * @param selector of the form `Axis[L].at(start, windowSize)`
+      * @param value the new window, with the shape of `tensor.slice(selector)`
+      */
+    def set[L](selector: AxisAtWindow[L])(using
+        axisIndex: AxisIndex[T, L],
+        labels: Labels[T]
+    )(value: Tensor[T, V]): Tensor[T, V] =
+      requireSelectionShape(value, tensor.windowExtents(selector, axisIndex.index))
+      Tensor(Jax.lax.dynamic_update_slice(tensor.jaxValue, value.jaxValue, tensor.windowStarts(selector, axisIndex.index)))
+
+    /** The Python index `tensor[:, ..., index, ..., :]`, with `index` at the axis `dimIndex`. */
+    private def indexAlong(dimIndex: Int, index: py.Any): Jax.PyDynamic =
+      val all = py.Dynamic.global.slice(py.None)
+      Jax.Dynamic.global.tuple(Seq.tabulate[py.Any](tensor.shape.rank)(i => if i == dimIndex then index else all).toPythonProxy)
+
+    /** The Python slice for `range` on the axis `dimIndex`, which the range must not leave. */
+    private def pyRange(range: Range, dimIndex: Int): py.Any =
+      val dimSize = tensor.shape.dimensions(dimIndex)
+      require(range.isEmpty || (range.min >= 0 && range.max < dimSize), s"$range is out of bounds for axis of size $dimSize")
+      // map Scala Range to Python Range which is exclusive
+      val stop = range match
+        case r: Range.Inclusive => r.end + r.step.sign
+        case r: Range.Exclusive => r.end
+      // the range is in bounds, so a negative stop can only mean "before the first element", which Python spells as None
+      py.Dynamic.global.slice(range.start, if stop < 0 then py.None else py.Any.from(stop), range.step)
+
+    /** The extents of the window `selector` on the axis at `dimIndex`: `windowSize` there, the whole axis elsewhere. */
+    private def windowExtents(selector: AxisAtWindow[?], dimIndex: Int): Seq[Int] =
+      val dimSize = tensor.shape.dimensions(dimIndex)
+      val size = selector.windowSize
+      require(size >= 0 && size <= dimSize, s"Window of size $size does not fit axis ${tensor.axes(dimIndex)} of size $dimSize")
+      selector.start match
+        case start: Int =>
+          require(start >= 0 && start + size <= dimSize, s"Window $start until ${start + size} is out of bounds for axis ${tensor.axes(dimIndex)} of size $dimSize")
+        case _ => () // a tensor start may be traced, so JAX clamps it
+      tensor.shape.dimensions.updated(dimIndex, size)
+
+    /** The start of the window `selector` on every axis: its start on the axis at `dimIndex`, 0 elsewhere. */
+    private def windowStarts(selector: AxisAtWindow[?], dimIndex: Int): Jax.PyDynamic =
+      val start: py.Any = selector.start match
+        case start: Int          => py.Any.from(start)
+        case start: Tensor[?, ?] => start.jaxValue
+      val starts = Seq.tabulate[py.Any](tensor.shape.rank)(i => if i == dimIndex then start else py.Any.from(0))
+      Jax.Dynamic.global.tuple(starts.toPythonProxy)
 
     def rearrange[Axes <: Tuple, Status <: ValidationResult](newOrder: Axes)(using
         Labels[UnwrapAxes[Axes]]

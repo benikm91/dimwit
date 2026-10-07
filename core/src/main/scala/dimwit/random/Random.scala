@@ -73,7 +73,7 @@ object Random:
     *    Array(3, 4),
     *    Array(5, 6)) )
     *    val perm = Random.permutation(Axis[Row] -> 3)(key)
-    *    val shuffled = data.take(Axis[Row])(perm)
+    *    val shuffled = data.slice(Axis[Row].at(perm))
     * }}}
     *
     * @param dim
