@@ -164,9 +164,9 @@ class TensorCreationSuite extends DimwitTest:
       typeCheckErrors("Tensor1(Axis[A]).fromRange(0 until 3, VType[Float32])") should not be empty
       typeCheckErrors("Tensor1(Axis[A], VType[Float32]).fromRange(0 until 3)") should not be empty
 
-    it("can be consumed as gather indices by take"):
+    it("can be consumed as gather indices by slice"):
       val t = Tensor1(Axis[A]).fromArray(Array(10.0f, 20.0f, 30.0f))
-      t.take(Axis[A])(Tensor1(Axis[B]).fromRange(0 until 3)) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))
+      t.slice(Axis[A].at(Tensor1(Axis[B]).fromRange(0 until 3))) shouldEqual Tensor1(Axis[B]).fromArray(Array(10.0f, 20.0f, 30.0f))
 
   describe("linspace"):
 

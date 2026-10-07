@@ -99,7 +99,7 @@ class RandomSuite extends DimwitTest:
     ))
 
     val rowPerm = Random.permutation(Axis[Row] -> 4)(key)
-    val shuffled = original.take(Axis[Row])(rowPerm)
+    val shuffled = original.slice(Axis[Row].at(rowPerm))
 
     shuffled.shape should equal(original.shape)
     shuffled.sum.item shouldBe original.sum.item // sum should be unchanged

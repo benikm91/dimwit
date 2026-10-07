@@ -5,6 +5,8 @@ import dimwit.|*|
 
 import ShapeTypeHelpers.AxisIndex
 
+import scala.annotation.targetName
+
 /** Instances of this class represent an axis in a tensor with a specific label `L`.
   * Axis objects are used whenever an axis needs to be selected at the value level,
   * such as when indexing into a tensor or defining the shape of a tensor.
@@ -16,6 +18,10 @@ final class Axis[L: Label]:
   def at(range: Range): AxisAtRange[L] = AxisAtRange(this, range)
   def at(indices: Seq[Int]): AxisAtIndices[L] = AxisAtIndices(this, indices)
   def at(index: Tensor0[Int32]): AxisAtTensorIndex[L] = AxisAtTensorIndex(this, index)
+  @targetName("atTensorIndices")
+  def at[L2](indices: Tensor1[L2, Int32]): AxisAtTensorIndices[L, L2] = AxisAtTensorIndices(this, indices)
+  def at(start: Int, windowSize: Int): AxisAtWindow[L] = AxisAtWindow(this, start, windowSize)
+  def at(start: Tensor0[Int32], windowSize: Int): AxisAtWindow[L] = AxisAtWindow(this, start, windowSize)
   def at[I <: NonEmptyTuple](indices: I): AxisAtTupleIndices[L, I] = AxisAtTupleIndices(this, indices)
   def as[U](newAxis: Axis[U]): (Axis[L], Axis[U]) = (this, newAxis)
 
@@ -53,6 +59,16 @@ case class AxisAtIndices[L](axis: Axis[L], indices: Seq[Int]) extends AxisSelect
 
 /* Represent an axis selection by a tensor containing indices. This allows for dynamic indexing based on the contents of the tensor. */
 case class AxisAtTensorIndex[L](axis: Axis[L], index: Tensor0[Int32]) extends AxisSelector[L]
+
+/* Represent an axis selection by a vector of indices. The selected axis is replaced by the axis of the vector. */
+case class AxisAtTensorIndices[L, L2](axis: Axis[L], indices: Tensor1[L2, Int32]) extends AxisSelector[L]
+
+/** Represent an axis selection by a window of `windowSize` consecutive indices from `start`.
+  * The start may be a tensor, also a traced one (e.g. a loop index under `jit`); the size is static.
+  * A window with an `Int` start must fit the axis. With a tensor start, which cannot be checked,
+  * the start is clamped so that the window fits, as in `jax.lax.dynamic_slice`.
+  */
+case class AxisAtWindow[L](axis: Axis[L], start: Int | Tensor0[Int32], windowSize: Int) extends AxisSelector[L]
 
 /* Represent an axis selection by a tuple containing indices. */
 case class AxisAtTupleIndices[L, I <: NonEmptyTuple](axis: Axis[L], indices: I) extends AxisSelector[L]

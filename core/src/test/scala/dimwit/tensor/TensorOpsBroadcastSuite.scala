@@ -162,10 +162,10 @@ class TensorOpsBroadcastSuite extends DimwitTest:
       )
       val res = AB.broadcastTo(tABCD.shape)
       res.shape shouldEqual tABCD.shape
-      res.slice((Axis[C].at(0), Axis[D].at(0))) should approxEqual(AB)
-      res.slice((Axis[C].at(1), Axis[D].at(0))) should approxEqual(AB)
-      res.slice((Axis[C].at(0), Axis[D].at(1))) should approxEqual(AB)
-      res.slice((Axis[C].at(1), Axis[D].at(1))) should approxEqual(AB)
+      res.slice(Axis[C].at(0)).slice(Axis[D].at(0)) should approxEqual(AB)
+      res.slice(Axis[C].at(1)).slice(Axis[D].at(0)) should approxEqual(AB)
+      res.slice(Axis[C].at(0)).slice(Axis[D].at(1)) should approxEqual(AB)
+      res.slice(Axis[C].at(1)).slice(Axis[D].at(1)) should approxEqual(AB)
 
     it("BC broadcastTo ABCD"):
       val BC = Tensor(Shape(Axis[B] -> 2, Axis[C] -> 2)).fromArray(
@@ -173,10 +173,10 @@ class TensorOpsBroadcastSuite extends DimwitTest:
       )
       val res = BC.broadcastTo(tABCD.shape)
       res.shape shouldEqual tABCD.shape
-      res.slice((Axis[A].at(0), Axis[D].at(0))) should approxEqual(BC)
-      res.slice((Axis[A].at(1), Axis[D].at(0))) should approxEqual(BC)
-      res.slice((Axis[A].at(0), Axis[D].at(1))) should approxEqual(BC)
-      res.slice((Axis[A].at(1), Axis[D].at(1))) should approxEqual(BC)
+      res.slice(Axis[A].at(0)).slice(Axis[D].at(0)) should approxEqual(BC)
+      res.slice(Axis[A].at(1)).slice(Axis[D].at(0)) should approxEqual(BC)
+      res.slice(Axis[A].at(0)).slice(Axis[D].at(1)) should approxEqual(BC)
+      res.slice(Axis[A].at(1)).slice(Axis[D].at(1)) should approxEqual(BC)
 
     it("CD broadcastTo ABCD"):
       val CD = Tensor(Shape(Axis[C] -> 2, Axis[D] -> 2)).fromArray(
@@ -184,10 +184,10 @@ class TensorOpsBroadcastSuite extends DimwitTest:
       )
       val res = CD.broadcastTo(tABCD.shape)
       res.shape shouldEqual tABCD.shape
-      res.slice((Axis[A].at(0), Axis[B].at(0))) should approxEqual(CD)
-      res.slice((Axis[A].at(1), Axis[B].at(0))) should approxEqual(CD)
-      res.slice((Axis[A].at(0), Axis[B].at(1))) should approxEqual(CD)
-      res.slice((Axis[A].at(1), Axis[B].at(1))) should approxEqual(CD)
+      res.slice(Axis[A].at(0)).slice(Axis[B].at(0)) should approxEqual(CD)
+      res.slice(Axis[A].at(1)).slice(Axis[B].at(0)) should approxEqual(CD)
+      res.slice(Axis[A].at(0)).slice(Axis[B].at(1)) should approxEqual(CD)
+      res.slice(Axis[A].at(1)).slice(Axis[B].at(1)) should approxEqual(CD)
 
   describe("Disallow"):
 

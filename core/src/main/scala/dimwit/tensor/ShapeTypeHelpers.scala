@@ -164,22 +164,6 @@ object ShapeTypeHelpers:
       type RemainingAxes = R
       def indices: List[Int] = idx.indices
 
-  /** Removes [[RemovedAxis]] from a tensor shape while computing runtime indices
-    *  for [[IndexAxes]].
-    */
-  trait AxesConditionalRemover[TensorShape <: Tuple, RemovedAxis <: Tuple, IndexAxes <: Tuple] extends AxesInTensor[TensorShape, IndexAxes]:
-    type RemainingAxes <: Tuple
-
-  object AxesConditionalRemover:
-    type Aux[T <: Tuple, RA <: Tuple, IA <: Tuple, R <: Tuple] = AxesConditionalRemover[T, RA, IA] { type RemainingAxes = R }
-
-    given bridge[T <: Tuple, RemovedAxis <: Tuple, IndexAxes <: Tuple, R <: Tuple](using
-        idx: AxisIndices[T, IndexAxes],
-        ev: RemoverAll.Aux[T, RemovedAxis, R]
-    ): AxesConditionalRemover.Aux[T, RemovedAxis, IndexAxes, R] = new AxesConditionalRemover[T, RemovedAxis, IndexAxes]:
-      type RemainingAxes = R
-      def indices = idx.indices
-
   /** Removes a shared axis from multiple tensor shapes while computing runtime indices
     * for the remaining axes.
     */

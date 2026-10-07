@@ -490,18 +490,29 @@ class TensorOpsStructureSuite extends DimwitTest:
       s2 should approxEqual(part2)
       s3 should approxEqual(part3)
 
+  describe("selectors"):
+
+    it("are applied one at a time, not as a tuple"):
+      "t3.slice((Axis[A].at(0), Axis[B].at(0)))" shouldNot compile
+      "t3.set((Axis[A].at(0), Axis[B].at(0)))(Tensor1(Axis[C]).fromArray(Array(0f)))" shouldNot compile
+
+    it("reject a value whose shape differs from the selection"):
+      val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
+      the[IllegalArgumentException] thrownBy t.set(Axis[A].at(0 to 1))(t) should have message
+        "requirement failed: Cannot set a value of shape Shape(A -> 3) into a selection of shape (A -> 2)"
+
   describe("set function"):
 
     describe("AxisAtIndex"):
 
       it("set single value (scalar index)"):
         var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
-        t = t.set((Axis[A].at(0), Axis[B].at(0)))(5f)
+        t = t.set(Axis[A].at(0))(t.slice(Axis[A].at(0)).set(Axis[B].at(0))(5f))
         t should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(5.0f, 2.0f), Array(3.0f, 4.0f))))
 
       it("set single value (tensor index)"):
         var t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 4.0f)))
-        t = t.set((Axis[A].at(Tensor0(1)), Axis[B].at(Tensor0(1))))(5f)
+        t = t.set(Axis[A].at(Tensor0(1)))(t.slice(Axis[A].at(Tensor0(1))).set(Axis[B].at(Tensor0(1)))(5f))
         t should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f), Array(3.0f, 5.0f))))
 
       it("set a sub-vector"):
@@ -567,6 +578,31 @@ class TensorOpsStructureSuite extends DimwitTest:
         val t2 = t.set(Axis[A].at(List(0, 2)))(Tensor1(Axis[A]).fromArray(Array(7.0f, 8.0f)))
         t2 should approxEqual(Tensor1(Axis[A]).fromArray(Array(7.0f, 2.0f, 8.0f)))
 
+    describe("AxisAtTensorIndices"):
+
+      // Shape: A=2, B=3, the value at (a, b) is 10a + b
+      val ab = Tensor2(Axis[A], Axis[B]).fromArray(Array.tabulate(2, 3)((a, b) => 10f * a + b))
+      val indices = Tensor1(Axis[C]).fromArray(Array(2, 0, 2, 1))
+
+      it("slices at the indices and replaces the axis by the axis of the indices"):
+        val sliced = ab.slice(Axis[B].at(indices))
+        sliced.axes shouldBe List("A", "C")
+        sliced should approxEqual(Tensor2(Axis[A], Axis[C]).fromArray(Array(Array(2f, 0f, 2f, 1f), Array(12f, 10f, 12f, 11f))))
+
+      it("keeps the axis when the indices have the same axis"):
+        val permutation = Tensor1(Axis[B]).fromArray(Array(2, 0, 1))
+        ab.slice(Axis[B].at(permutation)) should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(2f, 0f, 1f), Array(12f, 10f, 11f))))
+
+      it("sets at the indices"):
+        val zeros = Tensor(ab.shape).fill(0f)
+        val positions = Tensor1(Axis[C]).fromArray(Array(2, 0))
+        val values = Tensor2(Axis[A], Axis[C]).fromArray(Array(Array(1f, 2f), Array(3f, 4f)))
+        zeros.set(Axis[B].at(positions))(values) should approxEqual(Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(2f, 0f, 1f), Array(4f, 0f, 3f))))
+
+      it("set is the inverse of slice for distinct indices"):
+        val permutation = Tensor1(Axis[B]).fromArray(Array(2, 0, 1))
+        Tensor(ab.shape).fill(0f).set(Axis[B].at(permutation))(ab.slice(Axis[B].at(permutation))) should approxEqual(ab)
+
     describe("roll"):
       it("tensor1"):
         val t1 = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f))
@@ -578,6 +614,96 @@ class TensorOpsStructureSuite extends DimwitTest:
         val t = Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(1.0f, 2.0f, 3.0f), Array(4.0f, 5.0f, 6.0f)))
         t.roll(Axis[B], shift = 1) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(3.0f, 1.0f, 2.0f), Array(6.0f, 4.0f, 5.0f))))
         t.roll(Axis[A], shift = 1) shouldEqual (Tensor2(Axis[A], Axis[B]).fromArray(Array(Array(4.0f, 5.0f, 6.0f), Array(1.0f, 2.0f, 3.0f))))
+
+  describe("window (AxisAtWindow)"):
+
+    // Shape: A=2, B=5, C=3, the value at (a, b, c) is 100a + 10b + c
+    val abc = Tensor3(Axis[A], Axis[B], Axis[C]).fromArray(
+      Array.tabulate(2, 5, 3)((a, b, c) => 100f * a + 10f * b + c)
+    )
+
+    describe("slice"):
+
+      it("slices a window of a vector"):
+        val t = Tensor1(Axis[A]).fromArray(Array(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f))
+        t.slice(Axis[A].at(Tensor0(2), 3)) should approxEqual(Tensor1(Axis[A]).fromArray(Array(3.0f, 4.0f, 5.0f)))
+
+      it("slices a window along a middle axis and keeps the axis"):
+        val window: Tensor3[A, B, C, Float32] = abc.slice(Axis[B].at(Tensor0(1), 2))
+        window.axes shouldBe List("A", "B", "C")
+        window.shape.dimensions shouldBe List(2, 2, 3)
+        window should approxEqual(abc.slice(Axis[B].at(1 until 3)))
+
+      it("clamps the start so that the window fits"):
+        abc.slice(Axis[B].at(Tensor0(4), 3)) should approxEqual(abc.slice(Axis[B].at(2 until 5)))
+
+      it("chains with other selectors"):
+        val window = abc.slice(Axis[B].at(Tensor0(1), 2)).slice(Axis[C].at(0))
+        window.axes shouldBe List("A", "B")
+        window should approxEqual(abc.slice(Axis[B].at(1 until 3)).slice(Axis[C].at(0)))
+
+      it("rejects an axis that the tensor does not have"):
+        "abc.slice(Axis[D].at(Tensor0(1), 2))" shouldNot compile
+
+      it("works with a traced start under jit"):
+        val sliceAt = jit((start: Tensor0[Int32]) => abc.slice(Axis[B].at(start, 2)))
+        sliceAt(Tensor0(0)) should approxEqual(abc.slice(Axis[B].at(0 until 2)))
+        sliceAt(Tensor0(3)) should approxEqual(abc.slice(Axis[B].at(3 until 5)))
+
+      it("is differentiable"):
+        val grad = Autodiff.grad((t: Tensor3[A, B, C, Float32]) => t.slice(Axis[B].at(Tensor0(1), 2)).sum)
+        val expected = Tensor3(Axis[A], Axis[B], Axis[C]).fromArray(
+          Array.tabulate(2, 5, 3)((_, b, _) => if b == 1 || b == 2 then 1f else 0f)
+        )
+        grad(abc).value should approxEqual(expected)
+
+      it("slices a window with an Int start"):
+        abc.slice(Axis[B].at(1, 2)) should approxEqual(abc.slice(Axis[B].at(1 until 3)))
+
+      it("rejects a window with an Int start that does not fit"):
+        the[IllegalArgumentException] thrownBy abc.slice(Axis[B].at(4, 3)) should have message
+          "requirement failed: Window 4 until 7 is out of bounds for axis B of size 5"
+
+      it("rejects a window larger than the axis"):
+        the[IllegalArgumentException] thrownBy abc.slice(Axis[B].at(Tensor0(0), 6)) should have message
+          "requirement failed: Window of size 6 does not fit axis B of size 5"
+
+    describe("set"):
+
+      val zeros = Tensor(abc.shape).fill(0f)
+      val block = Tensor3(Axis[A], Axis[B], Axis[C]).fromArray(
+        Array.tabulate(2, 2, 3)((a, b, c) => 1f + 100f * a + 10f * b + c)
+      )
+
+      it("sets a window along a middle axis"):
+        zeros.set(Axis[B].at(Tensor0(1), 2))(block) should approxEqual(zeros.set(Axis[B].at(1 until 3))(block))
+
+      it("clamps the start so that the window fits"):
+        zeros.set(Axis[B].at(Tensor0(4), 2))(block) should approxEqual(zeros.set(Axis[B].at(3 until 5))(block))
+
+      it("works with a traced start under jit"):
+        val setAt = jit((start: Tensor0[Int32]) => zeros.set(Axis[B].at(start, 2))(block))
+        setAt(Tensor0(0)) should approxEqual(zeros.set(Axis[B].at(0 until 2))(block))
+        setAt(Tensor0(3)) should approxEqual(zeros.set(Axis[B].at(3 until 5))(block))
+
+      it("sets a window with an Int start"):
+        zeros.set(Axis[B].at(1, 2))(block) should approxEqual(zeros.set(Axis[B].at(1 until 3))(block))
+
+      it("fills a buffer row by row"):
+        val filled = (0 until 5).foldLeft(zeros): (buffer, b) =>
+          buffer.set(Axis[B].at(Tensor0(b), 1))(abc.slice(Axis[B].at(b until b + 1)))
+        filled should approxEqual(abc)
+
+      it("is differentiable with respect to the value"):
+        val grad = Autodiff.grad((value: Tensor3[A, B, C, Float32]) => (zeros.set(Axis[B].at(Tensor0(1), 2))(value) * abc).sum)
+        grad(block).value should approxEqual(abc.slice(Axis[B].at(1 until 3)))
+
+      it("rejects a value whose extent differs from the window size"):
+        the[IllegalArgumentException] thrownBy zeros.set(Axis[B].at(Tensor0(1), 3))(block) should have message
+          "requirement failed: Cannot set a value of shape Shape(A -> 2, B -> 2, C -> 3) into a selection of shape (A -> 2, B -> 3, C -> 3)"
+
+      it("does not broadcast a value without the window axis"):
+        "zeros.set(Axis[B].at(Tensor0(1), 2))(block.slice(Axis[B].at(0)))" shouldNot compile
 
   describe("chunk function"):
 
