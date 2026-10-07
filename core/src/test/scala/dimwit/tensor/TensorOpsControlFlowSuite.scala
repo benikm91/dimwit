@@ -59,7 +59,7 @@ class TensorOpsControlFlowSuite extends DimwitTest:
           (Cache(keys, cache.count + Tensor0(1)), cache.count)
       val weightedSum = xs.unstack(Axis[Time]).zip(Seq(1f, 2f, 3f, 4f)).map((x, w) => x *! w).reduce(_ + _)
       cache.count.item shouldBe 4
-      cache.keys.slice(Axis[Time].at(0)) should approxEqual(weightedSum)
+      cache.keys(Axis[Time].at(0)) should approxEqual(weightedSum)
       counts shouldEqual Tensor1(Axis[Time]).fromArray(Array(0, 1, 2, 3))
 
     it("has the same gradient as the unrolled loop"):
@@ -72,7 +72,7 @@ class TensorOpsControlFlowSuite extends DimwitTest:
       Autodiff.grad(scanned)(w).value should approxEqual(Autodiff.grad(unrolled)(w).value, 1e-5f)
 
     it("rejects tensors with different extents along the axis"):
-      val tooShort = xs.slice(Axis[Time].at(0 until 3))
+      val tooShort = xs(Axis[Time].at(0 until 3))
       the[IllegalArgumentException] thrownBy scan(Axis[Time])(zeros, (xs, tooShort))((c, x) => (c + x._1 + x._2, ())) should have message
         "requirement failed: All tensors scanned over Axis[Time] must have the same extent along it, but they have 4, 3"
 
@@ -104,7 +104,7 @@ class TensorOpsControlFlowSuite extends DimwitTest:
     it("fills a buffer row by row at the traced index"):
       val buffer = jit((xs: Tensor2[Time, Feature, Float32]) =>
         foriLoop(0, 4)(Tensor(xs.shape).fill(0f)): (i, buffer) =>
-          buffer.set(Axis[Time].at(i, 1))(xs.slice(Axis[Time].at(i, 1)) *! 2f)
+          buffer.updated(Axis[Time].at(i, 1))(xs(Axis[Time].at(i, 1)) *! 2f)
       )(xs)
       buffer should approxEqual(xs *! 2f)
 

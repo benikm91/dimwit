@@ -692,7 +692,7 @@ val (weightedSum, _) = scan(Axis[Time])(Tensor0(0.0f), (signal, weights)):
 // foriLoop: loop over the indices lower until upper. The index is a traced Tensor0[Int32],
 // e.g. to write a window at it
 val squares = foriLoop(0, 4)(Tensor(Shape(Axis[Time] -> 4)).fill(0)): (i, buffer) =>
-  buffer.set(Axis[Time].at(i, 1))((i * i).broadcastTo(Shape(Axis[Time] -> 1)))
+  buffer.updated(Axis[Time].at(i, 1))((i * i).broadcastTo(Shape(Axis[Time] -> 1)))
 // squares: [0, 1, 4, 9]
 
 // whileLoop: loop while a condition holds, here Newton's method for the square root of 2
