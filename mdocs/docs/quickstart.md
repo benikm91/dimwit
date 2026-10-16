@@ -71,10 +71,12 @@ import dimwit.*
 
 This import will give you everything that you need for working with Tensors. For more specialized operations, such as statistical functions or automatic differentiation, separate imports are required, which we will discuss later in this guide.
 
-The first statement in every DimWit program should always be 
-```
+The first statement in every DimWit program should always be
+
+```scala
 dimwit.initialize()
-```. 
+```
+
 This initializes the Python environment and the JAX backend. 
 
 
@@ -203,7 +205,6 @@ However, if we try to add two tensors with incompatible shapes, we will get a co
 
 ```scala mdoc:fail
 trait C derives Label
-val tensor1 = Tensor(Shape(Axis[A] -> 3, Axis[B] -> 2)).fill(1.0f)
 val tensor3 = Tensor(Shape(Axis[A] -> 3, Axis[C] -> 2)).fill(2.0f)
 tensor1 + tensor3 
 ```
