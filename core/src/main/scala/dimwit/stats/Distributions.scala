@@ -1,6 +1,8 @@
 package dimwit.stats
 
 import dimwit.*
+import dimwit.jax.Jax
+import dimwit.python.PyBridge.liftPyTensor
 import dimwit.random.Random
 
 opaque type LogProb = Float32
@@ -11,6 +13,10 @@ object LogProb:
   given IsFloating[LogProb] = summon[IsFloating[Float32]]
 
   def apply[T <: Tuple: Labels](t: Tensor[T, Float32]): Tensor[T, LogProb] = t
+
+  /** Lift a log probability computed by JAX, which has the dtype of the distribution's parameters. */
+  private[stats] def fromPy[T <: Tuple: Labels](jaxValue: Jax.PyDynamic): Tensor[T, LogProb] =
+    liftPyTensor(Jax.jnp.astype(jaxValue, Jax.jnp.float32))
 
   extension [T <: Tuple: Labels](t: Tensor[T, LogProb])
 
