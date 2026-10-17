@@ -71,10 +71,12 @@ import dimwit.*
 
 This import will give you everything that you need for working with Tensors. For more specialized operations, such as statistical functions or automatic differentiation, separate imports are required, which we will discuss later in this guide.
 
-The first statement in every DimWit program should always be 
-```
+The first statement in every DimWit program should always be
+
+```scala
 dimwit.initialize()
-```. 
+```
+
 This initializes the Python environment and the JAX backend. 
 
 
@@ -85,10 +87,6 @@ Each axis has an associated label, which we define when we create the shape of a
 
 A label is simply a Scala type that derives from the `Label` trait. For example:
 
-```scala mdoc:invisible:reset
-import dimwit.*
-dimwit.initialize()
-```
 
 ```scala
 trait Batch derives Label
@@ -146,7 +144,7 @@ Let's inspect the tensor more closely:
 
 ```scala
 tensor
-// res2: Tensor[Tuple2[Batch, Feature], Float32] = [[1. 2.]
+// res4: Tensor[Tuple2[Batch, Feature], Float32] = [[1. 2.]
 //  [3. 4.]
 //  [5. 6.]]
 ```
@@ -203,29 +201,17 @@ However, if we try to add two tensors with incompatible shapes, we will get a co
 
 ```scala
 trait C derives Label
-val tensor1 = Tensor(Shape(Axis[A] -> 3, Axis[B] -> 2)).fill(1.0f)
 val tensor3 = Tensor(Shape(Axis[A] -> 3, Axis[C] -> 2)).fill(2.0f)
 tensor1 + tensor3 
 // error:
-// Found:    (MdocApp1.this.tensor3 :
-//   dimwit.tensor.Tensor[(MdocApp1.this.A, MdocApp1.this.C),
+// Found:    (MdocApp2.this.tensor3 :
+//   dimwit.tensor.Tensor[(MdocApp2.this.A, MdocApp2.this.C),
 //     dimwit.tensor.DType.Float32]
 // )
-// Required: dimwit.tensor.Tensor[(MdocApp1.this.A, MdocApp1.this.B),
+// Required: dimwit.tensor.Tensor[(MdocApp2.this.A, MdocApp2.this.B),
 //   dimwit.tensor.DType.Float32]
 // tensor1 + tensor3 
 //           ^^^^^^^
-// error:
-// Conflicting definitions:
-// val tensor1:
-//   dimwit.tensor.Tensor[(MdocApp1.this.A, MdocApp1.this.B),
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 63 and
-// val tensor1:
-//   dimwit.tensor.Tensor[(MdocApp1.this.A, MdocApp1.this.B),
-//     dimwit.tensor.DType.Float32] in class MdocApp1 at line 67
-// 
-// val tensor1 = Tensor(Shape(Axis[A] -> 3, Axis[B] -> 2)).fill(1.0f)
-//     ^
 ```
 
 Another key difference between DimWit and other tensor libraries is the broadcasting behavior. As silent broadcasting
@@ -236,11 +222,11 @@ trait C derives Label
 val tensor3 = Tensor(Shape(Axis[A] -> 3)).fill(1.0f)
 tensor1 + tensor3
 // error:
-// Found:    (MdocApp1.this.tensor3 :
-//   dimwit.tensor.Tensor[MdocApp1.this.A *: EmptyTuple,
+// Found:    (MdocApp2.this.tensor3 :
+//   dimwit.tensor.Tensor[MdocApp2.this.A *: EmptyTuple,
 //     dimwit.tensor.DType.Float32]
 // )
-// Required: dimwit.tensor.Tensor[(MdocApp1.this.A, MdocApp1.this.B),
+// Required: dimwit.tensor.Tensor[(MdocApp2.this.A, MdocApp2.this.B),
 //   dimwit.tensor.DType.Float32]
 // tensor1 + tensor3
 //           ^^^^^^^
