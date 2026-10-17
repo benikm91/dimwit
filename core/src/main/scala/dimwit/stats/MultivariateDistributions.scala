@@ -16,14 +16,15 @@ class MVNormal[L: Label, V: IsFloating](
 ) extends MultivariateDistribution[L, V]:
 
   override def logProb(x: Tensor1[L, V]): Tensor0[LogProb] =
-    liftPyTensor(jstats.multivariate_normal.logpdf(x.jaxValue, mean = mean.jaxValue, cov = covariance.jaxValue))
+    LogProb.fromPy(jstats.multivariate_normal.logpdf(x.jaxValue, mean = mean.jaxValue, cov = covariance.jaxValue))
 
   override def sample(k: Random.Key): Tensor1[L, V] =
     liftPyTensor(
       Jax.jrandom.multivariate_normal(
         k.jaxKey,
         mean = mean.jaxValue,
-        cov = covariance.jaxValue
+        cov = covariance.jaxValue,
+        dtype = VType[V].dtype.jaxType
       )
     )
 
@@ -32,13 +33,14 @@ class Dirichlet[L: Label, V: IsFloating](
 ) extends MultivariateDistribution[L, V]:
 
   override def logProb(x: Tensor1[L, V]): Tensor0[LogProb] =
-    liftPyTensor(jstats.dirichlet.logpdf(x.jaxValue, alpha = concentration.jaxValue))
+    LogProb.fromPy(jstats.dirichlet.logpdf(x.jaxValue, alpha = concentration.jaxValue))
 
   override def sample(k: Random.Key): Tensor1[L, V] =
     liftPyTensor(
       Jax.jrandom.dirichlet(
         k.jaxKey,
-        alpha = concentration.jaxValue
+        alpha = concentration.jaxValue,
+        dtype = VType[V].dtype.jaxType
       )
     )
 

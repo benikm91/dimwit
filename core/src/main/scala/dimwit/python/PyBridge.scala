@@ -3,21 +3,28 @@ package dimwit.python
 import dimwit.OnError
 import dimwit.tensortree.TensorTree
 import dimwit.jax.Jax
+import dimwit.tensor.ValueTypeClasses.HasDType
 import dimwit.tensor.*
 import me.shadaj.scalapy.py
 
 object PyBridge:
 
-  def liftPyTensor[T <: Tuple: Labels, V](jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
-  def liftPyTensor[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor[T, V] = new Tensor(jaxValue)
+  def liftPyTensor[T <: Tuple: Labels, V: HasDType](jaxValue: Jax.PyDynamic): Tensor[T, V] = checked(jaxValue, summon[HasDType[V]].dtype)
+  def liftPyTensor[T <: Tuple: Labels, V](shape: Shape[T], vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor[T, V] = checked(jaxValue, vtype.dtype)
 
-  def liftPyTensor0[V](vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor0[V] = new Tensor(jaxValue)
-  def liftPyTensor1[L: Label, V](ax: Axis[L], vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor1[L, V] = new Tensor(jaxValue)
+  def liftPyTensor0[V](vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor0[V] = checked(jaxValue, vtype.dtype)
+  def liftPyTensor1[L: Label, V](ax: Axis[L], vtype: VType[V])(jaxValue: Jax.PyDynamic): Tensor1[L, V] = checked(jaxValue, vtype.dtype)
 
   def toPyTensor[T <: Tuple, V](tensor: Tensor[T, V]): Jax.PyDynamic = tensor.jaxValue
 
   extension [T <: Tuple: Labels, V](tensor: Tensor[T, V])
-    def applyPy(f: py.Dynamic): Tensor[T, V] = liftPyTensor(f(toPyTensor(tensor)))
+    def applyPy(f: py.Dynamic): Tensor[T, V] = checked(f(toPyTensor(tensor)), tensor.dtype)
+
+  // The array is not converted, cast on the Python side (e.g. jnp.astype) if a conversion is intended
+  private def checked[T <: Tuple: Labels, V](jaxValue: Jax.PyDynamic, expected: DType): Tensor[T, V] =
+    val tensor = new Tensor[T, V](jaxValue)
+    require(tensor.dtype == expected, s"Expected a Python array of dtype ${expected.name}, but got ${tensor.dtype.name}.")
+    tensor
 
   // --- liftPyFn: wrap a Python callable for typed Scala use ---
 

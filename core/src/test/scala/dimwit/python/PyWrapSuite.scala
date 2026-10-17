@@ -4,6 +4,7 @@ import dimwit.*
 import dimwit.python.PyBridge
 import dimwit.jax.Jax
 import me.shadaj.scalapy.py
+import me.shadaj.scalapy.py.SeqConverters
 class PyWrapSuite extends DimwitTest:
 
   private val identity1d = py.eval("lambda x: x")
@@ -80,3 +81,13 @@ class PyWrapSuite extends DimwitTest:
       val result = dimwit.tensortree.TensorTree[Tensor1[A, Float32]].fromPyTree(pyResult)
 
       result should approxEqual(Tensor1(Axis[A]).fromArray(Array(6f, 9f, 12f)))
+
+  describe("PyBridge.liftPyTensor"):
+    val floatArray = Jax.jnp.array(Seq(1f, 2f, 3f).toPythonProxy, dtype = Jax.jnp.float32)
+
+    it("lifts an array with matching dtype"):
+      PyBridge.liftPyTensor1(Axis[A], VType[Float32])(floatArray) should approxEqual(Tensor1(Axis[A]).fromArray(Array(1f, 2f, 3f)))
+
+    it("rejects an array with a different dtype"):
+      an[IllegalArgumentException] should be thrownBy PyBridge.liftPyTensor[Tuple1[A], Int32](floatArray)
+      an[IllegalArgumentException] should be thrownBy PyBridge.liftPyTensor1(Axis[A], VType[Bool])(floatArray)

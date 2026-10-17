@@ -257,7 +257,7 @@ class DistributionSuite extends DimwitTest:
       val dist = HalfCauchy(loc, scale)
       val scalaLogProbs = dist.elementWiseLogProb(x)
       val scipyLogProbs = liftPyTensor1(Axis[A], VType[Float32])(
-        scipy_stats.halfcauchy.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue)
+        Jax.jnp.asarray(scipy_stats.halfcauchy.logpdf(x.jaxValue, loc = loc.jaxValue, scale = scale.jaxValue), dtype = Jax.jnp.float32)
       )
       scalaLogProbs.asFloat should approxEqual(scipyLogProbs)
 
@@ -512,3 +512,32 @@ class DistributionSuite extends DimwitTest:
       // Mean of Poisson(lambda) is lambda
       val expectedMeans = poisson.rate.asFloat32
       sampleMeans should approxEqual(expectedMeans, 0.2f)
+
+  describe("Float16 parameters"):
+    def f16(values: Float*): Tensor1[A, Float16] = Tensor1(Axis[A]).fromArray(values.toArray).asType(VType[Float16])
+    val key = Random.Key(0)
+    val loc = f16(0.0f, 1.0f)
+    val scale = f16(1.0f, 0.5f)
+    val x = f16(0.5f, 1.5f)
+
+    def checkTypes(name: String, dist: Distribution[Tuple1[A], Float16], x: Tensor1[A, Float16]): Unit =
+      it(s"$name samples Float16 and returns Float32 log probabilities"):
+        dist.sample(key).dtype shouldBe DType.Float16
+        dist.logProb(x).dtype shouldBe DType.Float32
+
+    checkTypes("Normal", Normal(loc, scale), x)
+    checkTypes("Uniform", Uniform(loc, f16(2.0f, 3.0f)), x)
+    checkTypes("Cauchy", Cauchy(loc, scale), x)
+    checkTypes("HalfCauchy", HalfCauchy(loc, scale), x)
+    checkTypes("HalfNormal", HalfNormal(loc, scale), x)
+    checkTypes("StudentT", StudentT(Tensor0(3.0f).asType(VType[Float16]), loc, scale), x)
+    checkTypes("Beta", Beta(f16(2.0f, 3.0f), f16(2.0f, 1.0f)), f16(0.3f, 0.6f))
+    checkTypes("Exponential", Exponential(f16(1.0f, 2.0f)), x)
+    checkTypes("Dirichlet", Dirichlet(f16(1.0f, 2.0f)), f16(0.3f, 0.7f))
+
+    it("TruncatedNormal samples Float16"):
+      TruncatedNormal.symmetric(loc, scale).sample(key).dtype shouldBe DType.Float16
+
+    it("Poisson with a Float16 rate returns Float32 log probabilities"):
+      val poisson = Poisson(f16(1.0f, 2.0f), VType[Int32])
+      poisson.logProb(Tensor1(Axis[A]).fromArray(Array(1, 2))).dtype shouldBe DType.Float32
