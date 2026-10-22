@@ -129,10 +129,10 @@ object SIRSimulation:
 
     val infectedOverTime: Tensor1[Time, Float32] =
       stack(trajectory.map(_.I), Axis[Time]).sum(Axis[Group])
-    println(s"I(0)   = ${infectedOverTime.slice(Axis[Time].at(0))}")
-    println(s"I(mid) = ${infectedOverTime.slice(Axis[Time].at(nSteps / 2))}")
-    println(s"I(end) = ${infectedOverTime.slice(Axis[Time].at(nSteps))}")
+    println(s"I(0)   = ${infectedOverTime(Axis[Time].at(0))}")
+    println(s"I(mid) = ${infectedOverTime(Axis[Time].at(nSteps / 2))}")
+    println(s"I(end) = ${infectedOverTime(Axis[Time].at(nSteps))}")
 
     val finalInfectedByGroup: Tensor1[Group, Float32] =
-      stack(trajectory.map(_.I), Axis[Time]).slice(Axis[Time].at(nSteps))
+      stack(trajectory.map(_.I), Axis[Time]).select(Axis[Time].at(nSteps))
     println(s"Final infected by group: $finalInfectedByGroup")

@@ -86,14 +86,14 @@ object LogisticRegression:
     val perm = Random.permutation(dataInitial.shape.extent(Axis[Sample]))(shuffleKey)
     val testSplitRatio = 0.4f
     val splitIndex = (numSamples * testSplitRatio).toInt
-    val trainPerm = perm.slice(Axis[Sample].at(0 until splitIndex))
-    val testPerm = perm.slice(Axis[Sample].at(splitIndex until numSamples))
+    val trainPerm = perm(Axis[Sample].at(0 until splitIndex))
+    val testPerm = perm(Axis[Sample].at(splitIndex until numSamples))
 
     // Use the permutations to get our training and validation data
-    val trainingDataUnnormalized = dataInitial.slice(Axis[Sample].at(trainPerm))
-    val valDataUnnormalized = dataInitial.slice(Axis[Sample].at(testPerm))
-    val trainLabels = labelsInitial.slice(Axis[Sample].at(trainPerm))
-    val valLabels = labelsInitial.slice(Axis[Sample].at(testPerm))
+    val trainingDataUnnormalized = dataInitial(Axis[Sample].at(trainPerm))
+    val valDataUnnormalized = dataInitial(Axis[Sample].at(testPerm))
+    val trainLabels = labelsInitial(Axis[Sample].at(trainPerm))
+    val valLabels = labelsInitial(Axis[Sample].at(testPerm))
 
     def calcMeanAndStd(t: Tensor2[Sample, Feature, Float32]): (Tensor1[Feature, Float32], Tensor1[Feature, Float32]) =
       val mean = t.vmap(Axis[Feature])(_.mean)

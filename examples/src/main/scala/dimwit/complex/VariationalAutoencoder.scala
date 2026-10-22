@@ -248,8 +248,7 @@ object VariationalAutoencoderExample:
     val vae = VariationalAutoencoder(trainedParams)
 
     /* Reconstructing images */
-    val reconstructed = testImages
-      .slice(Axis[TestSample].at(0 until 64))
+    val reconstructed = testImages(Axis[TestSample].at(0 until 64))
       .vmap(Axis[TestSample]): sample =>
         val (mean, logVar) = vae.encoder(sample.flatten)
         val latent = reparametrize(mean, logVar, dataKey) // TODo Key management

@@ -320,7 +320,7 @@ private[dimwit] object StructuralOps:
           val headTensor = Tensor[NewShape, V](currentArr)(using newLabelsWitness)
           headTensor *: tailMaker(arrays.tail, compLabels.tail, originalLabels, splitIndex)
 
-/** Extension methods for structural operations, e.g. `t.transpose`, `t.slice(...)` or `t.rearrange(...)`. */
+/** Extension methods for structural operations, e.g. `t.transpose`, `t.select(...)` or `t.rearrange(...)`. */
 private[dimwit] object StructuralExtensions:
 
   import StructuralOps.*
@@ -530,136 +530,159 @@ private[dimwit] object StructuralExtensions:
       val res = Jax.jnp.split(tensor.jaxValue, chunkSize, axis = axisIndex.index).as[Seq[Jax.PyDynamic]]
       res.map(x => Tensor[T, V](x))
 
-    /** Slice the tensor at an index along an axis, removing the axis.
+    /** Select the tensor at an index along an axis, removing the axis.
       *
       * @param selector of the form `Axis[L].at(index)`
       */
-    def slice[L](selector: AxisAtIndex[L])(using
+    def select[L](selector: AxisAtIndex[L])(using
         ev: AxisRemover[T, L],
         labels: Labels[ev.RemainingAxes]
     ): Tensor[ev.RemainingAxes, V] =
       Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(ev.index, py.Any.from(selector.index))))
 
-    /** Slice the tensor at an index given by a tensor along an axis, removing the axis.
+    /** Select the tensor at an index given by a tensor along an axis, removing the axis.
       * The index may be traced, e.g. a loop index under `jit`.
       *
       * @param selector of the form `Axis[L].at(index: Tensor0[Int32])`
       */
-    def slice[L](selector: AxisAtTensorIndex[L])(using
+    def select[L](selector: AxisAtTensorIndex[L])(using
         ev: AxisRemover[T, L],
         labels: Labels[ev.RemainingAxes]
     ): Tensor[ev.RemainingAxes, V] =
       Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(ev.index, selector.index.jaxValue)))
 
-    /** Slice the tensor at a range along an axis, keeping the axis with the length of the range as extent.
+    /** Select the tensor at a range along an axis, keeping the axis with the length of the range as extent.
       *
       * @param selector of the form `Axis[L].at(range)`
       */
-    def slice[L](selector: AxisAtRange[L])(using
+    def select[L](selector: AxisAtRange[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     ): Tensor[T, V] =
       Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, tensor.pyRange(selector.range, axisIndex.index))))
 
-    /** Slice the tensor at a sequence of indices along an axis, keeping the axis with the number of indices as extent.
+    /** Select the tensor at a sequence of indices along an axis, keeping the axis with the number of indices as extent.
       *
       * @param selector of the form `Axis[L].at(Seq(i, j, ...))`
       */
-    def slice[L](selector: AxisAtIndices[L])(using
+    def select[L](selector: AxisAtIndices[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     ): Tensor[T, V] =
       Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices))))
 
-    /** Slice the tensor at a tuple of indices along an axis, keeping the axis with the number of indices as extent.
+    /** Select the tensor at a tuple of indices along an axis, keeping the axis with the number of indices as extent.
       *
       * @param selector of the form `Axis[L].at((i, j, ...))`
       */
-    def slice[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
+    def select[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     ): Tensor[T, V] =
       Tensor(tensor.jaxValue.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices.toList.asInstanceOf[List[Int]]))))
 
-    /** Slice the tensor at the indices of a vector along an axis, like `jnp.take`.
+    /** Select the tensor at the indices of a vector along an axis, like `jnp.take`.
       * The axis is replaced by the axis of the indices. Out-of-bounds indices yield NaN for floating tensors.
       *
       * @param selector of the form `Axis[L].at(indices: Tensor1[L2, Int32])`
       */
-    def slice[L, L2](selector: AxisAtTensorIndices[L, L2])(using
+    def select[L, L2](selector: AxisAtTensorIndices[L, L2])(using
         ev: AxisReplacer[T, L, L2],
         labels: Labels[ev.NewShape]
     ): Tensor[ev.NewShape, V] =
       Tensor(Jax.jnp.take(tensor.jaxValue, selector.indices.jaxValue, axis = ev.index))
 
-    /** Slice a window of static size along an axis, like `jax.lax.dynamic_slice`.
+    /** Select a window of static size along an axis, like `jax.lax.dynamic_slice`.
       * Its start may be a tensor, also a traced one, e.g. a loop index under `jit`.
       *
       * @param selector of the form `Axis[L].at(start, windowSize)`
       * @return The window, which keeps the axis with extent `windowSize`.
       */
-    def slice[L](selector: AxisAtWindow[L])(using
+    def select[L](selector: AxisAtWindow[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     ): Tensor[T, V] =
       val window = tensor.windowExtents(selector, axisIndex.index)
       Tensor(Jax.lax.dynamic_slice(tensor.jaxValue, tensor.windowStarts(selector, axisIndex.index), window.toPythonCopy))
 
-    /** Overwrite the tensor at an index along an axis.
+    // `tensor(selector)` is `tensor.select(selector)`, as `seq(i)` reads a Scala collection.
+
+    def apply[L](selector: AxisAtIndex[L])(using ev: AxisRemover[T, L], labels: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] =
+      tensor.select(selector)(using ev, labels)
+
+    def apply[L](selector: AxisAtTensorIndex[L])(using ev: AxisRemover[T, L], labels: Labels[ev.RemainingAxes]): Tensor[ev.RemainingAxes, V] =
+      tensor.select(selector)(using ev, labels)
+
+    def apply[L](selector: AxisAtRange[L])(using axisIndex: AxisIndex[T, L], labels: Labels[T]): Tensor[T, V] =
+      tensor.select(selector)
+
+    def apply[L](selector: AxisAtIndices[L])(using axisIndex: AxisIndex[T, L], labels: Labels[T]): Tensor[T, V] =
+      tensor.select(selector)
+
+    def apply[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using axisIndex: AxisIndex[T, L], labels: Labels[T]): Tensor[T, V] =
+      tensor.select(selector)
+
+    def apply[L, L2](selector: AxisAtTensorIndices[L, L2])(using ev: AxisReplacer[T, L, L2], labels: Labels[ev.NewShape]): Tensor[ev.NewShape, V] =
+      tensor.select(selector)(using ev, labels)
+
+    def apply[L](selector: AxisAtWindow[L])(using axisIndex: AxisIndex[T, L], labels: Labels[T]): Tensor[T, V] =
+      tensor.select(selector)
+
+    /** A copy of the tensor with new values at an index along an axis.
       *
       * @param selector of the form `Axis[L].at(index)`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L](selector: AxisAtIndex[L])(using
+    def updated[L](selector: AxisAtIndex[L])(using
         ev: AxisRemover[T, L],
         labels: Labels[T]
     )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] =
       requireSelectionShape(value, tensor.shape.dimensions.patch(ev.index, Nil, 1))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, py.Any.from(selector.index))).set(value.jaxValue))
 
-    /** Overwrite the tensor at an index given by a tensor along an axis. The index may be traced.
+    /** A copy of the tensor with new values at an index given by a tensor along an axis. The index may be traced.
       * An out-of-bounds index leaves the tensor unchanged.
       *
       * @param selector of the form `Axis[L].at(index: Tensor0[Int32])`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L](selector: AxisAtTensorIndex[L])(using
+    def updated[L](selector: AxisAtTensorIndex[L])(using
         ev: AxisRemover[T, L],
         labels: Labels[T]
     )(value: Tensor[ev.RemainingAxes, V]): Tensor[T, V] =
       requireSelectionShape(value, tensor.shape.dimensions.patch(ev.index, Nil, 1))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, selector.index.jaxValue)).set(value.jaxValue))
 
-    /** Overwrite the tensor at a range along an axis.
+    /** A copy of the tensor with new values at a range along an axis.
       *
       * @param selector of the form `Axis[L].at(range)`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L](selector: AxisAtRange[L])(using
+    def updated[L](selector: AxisAtRange[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     )(value: Tensor[T, V]): Tensor[T, V] =
       requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, selector.range.length))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, tensor.pyRange(selector.range, axisIndex.index))).set(value.jaxValue))
 
-    /** Overwrite the tensor at a sequence of indices along an axis.
+    /** A copy of the tensor with new values at a sequence of indices along an axis.
       *
       * @param selector of the form `Axis[L].at(Seq(i, j, ...))`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L](selector: AxisAtIndices[L])(using
+    def updated[L](selector: AxisAtIndices[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     )(value: Tensor[T, V]): Tensor[T, V] =
       requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, selector.indices.length))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(selector.indices))).set(value.jaxValue))
 
-    /** Overwrite the tensor at a tuple of indices along an axis.
+    /** A copy of the tensor with new values at a tuple of indices along an axis.
       *
       * @param selector of the form `Axis[L].at((i, j, ...))`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
+    def updated[L, I <: NonEmptyTuple](selector: AxisAtTupleIndices[L, I])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     )(value: Tensor[T, V]): Tensor[T, V] =
@@ -667,26 +690,26 @@ private[dimwit] object StructuralExtensions:
       requireSelectionShape(value, tensor.shape.dimensions.updated(axisIndex.index, indices.length))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(axisIndex.index, pyIndices(indices))).set(value.jaxValue))
 
-    /** Overwrite the tensor at the indices of a vector along an axis. Out-of-bounds indices are skipped;
+    /** A copy of the tensor with new values at the indices of a vector along an axis. Out-of-bounds indices are skipped;
       * for repeated indices, it is unspecified which of their values is written.
       *
       * @param selector of the form `Axis[L].at(indices: Tensor1[L2, Int32])`
-      * @param value the new values, with the shape of `tensor.slice(selector)`
+      * @param value the new values, with the shape of `tensor.select(selector)`
       */
-    def set[L, L2](selector: AxisAtTensorIndices[L, L2])(using
+    def updated[L, L2](selector: AxisAtTensorIndices[L, L2])(using
         ev: AxisReplacer[T, L, L2],
         labels: Labels[T]
     )(value: Tensor[ev.NewShape, V]): Tensor[T, V] =
       requireSelectionShape(value, tensor.shape.dimensions.updated(ev.index, selector.indices.shape.dimensions.head))
       Tensor(tensor.jaxValue.at.itemAt(tensor.indexAlong(ev.index, selector.indices.jaxValue)).set(value.jaxValue))
 
-    /** Overwrite a window of static size along an axis, like `jax.lax.dynamic_update_slice`.
+    /** A copy of the tensor with new values in a window of static size along an axis, like `jax.lax.dynamic_update_slice`.
       * Its start may be a tensor, also a traced one, e.g. a loop index under `jit`.
       *
       * @param selector of the form `Axis[L].at(start, windowSize)`
-      * @param value the new window, with the shape of `tensor.slice(selector)`
+      * @param value the new window, with the shape of `tensor.select(selector)`
       */
-    def set[L](selector: AxisAtWindow[L])(using
+    def updated[L](selector: AxisAtWindow[L])(using
         axisIndex: AxisIndex[T, L],
         labels: Labels[T]
     )(value: Tensor[T, V]): Tensor[T, V] =

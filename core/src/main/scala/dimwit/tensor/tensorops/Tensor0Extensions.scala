@@ -11,7 +11,7 @@ private[dimwit] object Tensor0Extensions:
       """
         | Cannot convert a JAX Tracer to a scalar value. Tensor0 is part of a JAX computation graph (e.g., inside vmap or a jitted function).
         | Common mistakes leading to this error:
-        |   - calling .slice(t0.item) rather than .slice(t0); breaking the computation graph unintentionally.
+        |   - calling t(Axis[L].at(t0.item)) rather than t(Axis[L].at(t0)); breaking the computation graph unintentionally.
         |""".stripMargin
     )
 

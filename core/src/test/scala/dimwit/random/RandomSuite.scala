@@ -35,7 +35,7 @@ class RandomSuite extends DimwitTest:
 
     val splitKeys = key.split(n)
     for i <- 0 until n do
-      val tensorKey = tensorKeys.slice(Axis[Samples].at(i)).item
+      val tensorKey = tensorKeys.select(Axis[Samples].at(i)).item
       val splitKey = splitKeys(i)
       tensorKey should equal(splitKey)
 
@@ -99,7 +99,7 @@ class RandomSuite extends DimwitTest:
     ))
 
     val rowPerm = Random.permutation(Axis[Row] -> 4)(key)
-    val shuffled = original.slice(Axis[Row].at(rowPerm))
+    val shuffled = original.select(Axis[Row].at(rowPerm))
 
     shuffled.shape should equal(original.shape)
     shuffled.sum.item shouldBe original.sum.item // sum should be unchanged
@@ -107,7 +107,7 @@ class RandomSuite extends DimwitTest:
     // Check that each row in shuffled exists in original by comparing row sums
     // Original row sums are: [3, 12, 21, 30]
     val shuffledRowSums = (0 until 4).map { i =>
-      shuffled.slice(Axis[Row].at(i)).sum.item
+      shuffled.select(Axis[Row].at(i)).sum.item
     }
     val expectedRowSums = Set(3, 12, 21, 30)
     shuffledRowSums.toSet shouldBe expectedRowSums
