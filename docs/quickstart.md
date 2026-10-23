@@ -286,7 +286,7 @@ To unflatten a partially flattened tensor, we need to specify the axis that we w
 ```scala
 partiallyFlattened.unflatten(Axis[B |*| C], Shape(Axis[B] -> 2, Axis[C] -> 4))
 ```
-#### Concatenating, splitting and slicing tensors
+#### Concatenating, splitting and selecting tensors
 
 Flatten and unflatten takes a single tensor and transform its shape. In contrast, concatenate and split take multiple tensors and combine them into a single tensor or split a single tensor into multiple tensors.
 Given two tensors with the same shape except for one axis, we can concatenate them along that axis as follows:
@@ -307,18 +307,31 @@ If we want a split into several tensors, we can specify the split points as foll
   val (splt1, splt2, splt3) = concatenated.split(Axis[A].at((1, 2)))
 ```
 
-The method `slice` works in a similar way to split, but instead of splitting the tensor into several tensors, 
-it returns a single tensor that is a slice of the original tensor. For example, we can extract the slice 
-at index 1 along axis A as follows:
+The method `select` works in a similar way to split, but instead of splitting the tensor into several tensors, 
+it returns a single tensor with the selected part of the original tensor. For example, we can select 
+index 1 along axis A as follows:
 
 ```scala
-  val sliced1 : Tensor1[B, Float32]= concatenated.slice(Axis[A].at(1))
+  val selected1 : Tensor1[B, Float32]= concatenated.select(Axis[A].at(1))
 ```
 
-As for split, we can also provide multiple a tuple (or sequence) of indices, which will then select all slices in the tuple.
+As for Scala collections, we can also apply the tensor to the selector directly, which is the same as `select`:
 
 ```scala
-  val slicedMultiple : Tensor2[A, B, Float32] = concatenated.slice(Axis[A].at((0, 2)))
+  val applied1 : Tensor1[B, Float32]= concatenated(Axis[A].at(1))
+```
+
+As for split, we can also provide a tuple (or sequence) of indices, which will then select all indices in the tuple.
+
+```scala
+  val selectedMultiple : Tensor2[A, B, Float32] = concatenated.select(Axis[A].at((0, 2)))
+```
+
+To change the values at a selection, `updated` returns a copy of the tensor with new values there,
+as `updated` does for Scala's immutable collections:
+
+```scala
+  val updated1 : Tensor2[A, B, Float32] = concatenated.updated(Axis[A].at(1))(Tensor(Shape(Axis[B] -> 2)).fill(0.0f))
 ```
 
 #### Squeezing, Expanding and transposing axes

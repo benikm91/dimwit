@@ -124,7 +124,7 @@ class LinearAlgebraSuite extends DimwitTest:
 
     it("R is upper triangular: lower-left element is zero"):
       val (_, r) = LinearAlgebra.qr(qrMat, Axis[LBasis])
-      r.slice(Axis[LBasis].at(1)).slice(Axis[Prime[A]].at(0)).item shouldBe 0.0f +- 1e-5f
+      r.select(Axis[LBasis].at(1)).select(Axis[Prime[A]].at(0)).item shouldBe 0.0f +- 1e-5f
 
     it("Frobenius norm is preserved: ||A||_F = ||R||_F (since Q is orthogonal)"):
       val (_, r) = LinearAlgebra.qr(qrMat, Axis[LBasis])

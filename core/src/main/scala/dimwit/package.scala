@@ -4,6 +4,8 @@ import dimwit.tensor.AxisAtIndex
 import dimwit.tensor.AxisAtIndices
 import dimwit.tensor.AxisAtRange
 import dimwit.tensor.AxisAtTensorIndex
+import dimwit.tensor.AxisAtTensorIndices
+import dimwit.tensor.AxisAtWindow
 import dimwit.tensor.AxisExtent
 import dimwit.tensor.AxisSelector
 
@@ -55,9 +57,11 @@ package object dimwit:
     AxisAtIndex,
     AxisAtRange,
     AxisAtIndices,
-    AxisAtTensorIndex
+    AxisAtTensorIndex,
+    AxisAtTensorIndices,
+    AxisAtWindow
   }
-  export dimwit.tensor.ShapeTypeHelpers.{AxisInTensor, AxisIndex, AxisRemover, AxisReplacer, AxisIndices, AxesRemover, AxesConditionalRemover, SharedAxisRemover}
+  export dimwit.tensor.ShapeTypeHelpers.{AxisInTensor, AxisIndex, AxisRemover, AxisReplacer, AxisIndices, AxesRemover, SharedAxisRemover}
 
   // Export the Prime axis marker and the type classes that manipulate it
   export dimwit.prime.{Prime, PrimeRemover, PrimeRest, PrimeConcat}
