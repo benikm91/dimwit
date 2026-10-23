@@ -15,12 +15,12 @@
 
 ## Why DimWit?
 
-Why yet another tensor library? In the era of AI-generated code, types make high-level relations clear at a glance and code easier to review. DimWit adds them to tensor code, at the runtime speed of JAX:
+Why yet another tensor library? With untyped tensors, the meaning of each axis lives only in the programmer's head. DimWit puts it into the types, e.g. `Tensor2[Batch, Feature, Float32]`, without sacrificing runtime speed:
 
-- **Easier to understand, easier to review.** With untyped tensors, the meaning of each axis lives only in the programmer's head. DimWit puts it into the types, e.g. `Tensor2[Batch, Feature, Float32]`, so whoever reads or reviews the code sees what each axis means, and the compiler checks it.
+- **Easier to understand.** Concepts become types, so the compiler helps keep them apart, sharpening the thinking about the problem.
+- **Easier to review.** The meaning of each axis is part of the code, streamlining code reviews, which matters all the more in the era of AI-generated code.
+- **Names are a shared vocabulary.** Axes like `Batch` or `Feature` name the concepts of the domain, so the code reads close to the theory behind it. They become a shared vocabulary for your team and your AI agents, whether you discuss code, review it or prompt for it.
 - **Fast.** DimWit is on par with JAX: under `jit`, a function is traced once and the compiled XLA program runs without Scala in the loop. [GPT-2 in DimWit](https://github.com/dimwit-dev/deepwit/tree/main/examples/src/main/scala/deepwit/examples/gpt) (124M parameters, trained from scratch on 10B tokens) trains as fast as in plain JAX.
-- **Names are a shared vocabulary.** Axes like `Batch` or `Feature` name the concepts of the domain. They become a shared vocabulary for your team and your AI agents, whether you discuss code, review it or prompt for it.
-- **Fewer silent bugs.** Implicit broadcasting and type promotion usually do the right thing, but when they don't, the code still runs and silently produces wrong results. DimWit makes both explicit (e.g. `x +! bias`), expressing intent and preventing many silent bugs. Instant compile errors streamline the writing of explicit code.
 
 ## Example
 
