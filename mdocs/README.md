@@ -12,9 +12,13 @@
 DimWit is a Scala library for numerical and machine learning programs that are easy for humans to understand.
 ▶ Watch the [ScalaDays 2026 talk](https://www.youtube.com/watch?v=2ZwGhCWXN5g).
 
+## Vision
+
+We want to create a system for writing numerical and machine learning programs that puts human understanding first. While programming, the compiler should help us to keep concepts separate and sharpen our thinking about the problem.
+
 ## Why DimWit?
 
-- **Strong types and fast execution.** JAX executes fast, but its tensors are untyped. DimWit wraps JAX in Scala and names the dimensions of tensors in their types, e.g. `Tensor2[Batch, Feature, Float32]`, so the code says what each axis means and the compiler checks it.
+- **Strong types and fast execution.** Numerical programs need to run fast, but they also need to be understood. JAX runs fast, but with untyped tensors the meaning of each axis lives only in the programmer's head. DimWit puts it into the types, e.g. `Tensor2[Batch, Feature, Float32]`, so the code says what each axis means and the compiler checks it.
 - **No overhead under `jit`.** DimWit only traces a function once; the compiled XLA program then runs without Scala in the loop. [GPT-2 in DimWit](https://github.com/dimwit-dev/deepwit/tree/main/examples/src/main/scala/deepwit/examples/gpt) (124M parameters, trained from scratch on 10B tokens) trains on par with plain JAX.
 - **Names are a shared vocabulary.** Axes like `Batch` or `Feature` name the concepts of the domain. They become a shared vocabulary for your team and your AI agents, whether you discuss code, review it or prompt for it.
 - **Explicit, not implicit.** DimWit is more than a one-to-one wrapper of JAX: what JAX does silently, DimWit makes explicit, e.g. broadcasting has its own operators (`x +! bias` instead of `x + bias`) and mixing precisions requires a cast (`x.asType(VType[Float16])`). In practice, this prevents many silent errors that are hard to find.
@@ -88,16 +92,6 @@ val Y: Tensor2[Batch, Output, Float32] =
 See our [quickstart guide](docs/quickstart.md) for a more detailed introduction to the core concepts and API and 
 check out the [examples](examples/src/main/scala).
 
-## Scope
-
-Like JAX, DimWit is a library for fast numerical programming: tensors, automatic differentiation, `vmap`, `jit` and random numbers.
-Everything else is built on top of it:
-
-| Project | Description |
-|---|---|
-| [DeepWit](https://github.com/dimwit-dev/deepwit) | Type-safe deep learning library with layers, attention and GPT-2. |
-| [WitDraw](https://github.com/dimwit-dev/witdraw) | Experimental library for probabilistic programming. |
-
 ## Using DimWit as a Library
 
 ### Requirements
@@ -160,10 +154,20 @@ Alternatively, you can configure the Python environment manually using these env
 - `DIMWIT_PYTHON_LIBRARY` — path to the Python shared library (find it with `python3 -c "import ctypes.util; print(ctypes.util.find_library('python3'))"`)
 - `DIMWIT_SKIP_SYNC` — set to `true` to skip uv environment sync on startup
 
+## Scope
+
+Like JAX, DimWit is a library for fast numerical programming: tensors, automatic differentiation, `vmap`, `jit` and random numbers.
+Everything else is built on top of it:
+
+| Project | Description |
+|---|---|
+| [DeepWit](https://github.com/dimwit-dev/deepwit) | Type-safe deep learning library with layers, attention and GPT-2. |
+| [WitDraw](https://github.com/dimwit-dev/witdraw) | Experimental library for probabilistic programming. |
+
 ## Status 
 
 **Ready to use.** The core concepts are stable and the API is maturing, but breaking changes may still happen until 1.0.
 
 ## Contributing
 
-We would love to have you on board! Feel free to open issues or pull requests on GitHub.
+If your interests align with our vision, we would love to have you on board! Feel free to open issues or pull requests on GitHub.
