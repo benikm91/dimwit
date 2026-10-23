@@ -89,6 +89,7 @@ package object dimwit:
   export dimwit.tensor.tensorops.ElementWiseOps.{maximum, minimum, maximum_!, minimum_!}
   export dimwit.tensor.tensorops.StructuralOps.{where, where_!, triu, tril, stack, concatenate}
   export dimwit.tensor.tensorops.FunctionalOps.zipvmap
+  export dimwit.tensor.tensorops.ControlFlowOps.{scan, foriLoop, whileLoop, cond}
 
   // Export convolution options
   export dimwit.tensor.{Padding, Stride1, Stride2, Stride3}

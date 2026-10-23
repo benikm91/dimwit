@@ -85,3 +85,21 @@ def jit(f):
 
 def jit_fn(f, jit_kwargs=None):
     return wrap(jax.jit, f, kwargs=jit_kwargs)
+
+
+# Structured control flow. The body is traced once, so a loop does not unroll under jit.
+# Each Scala callback is wrapped in a Python lambda, which shields it from JAX introspection.
+
+def scan(f, init, xs):
+    """jax.lax.scan; f(carry, x) returns the Python tuple (carry, y)."""
+    return jax.lax.scan(lambda carry, x: tuple(f(carry, x)), init, xs)
+
+def fori_loop(lower, upper, body, init):
+    return jax.lax.fori_loop(lower, upper, lambda i, carry: body(i, carry), init)
+
+def while_loop(cond, body, init):
+    return jax.lax.while_loop(lambda carry: cond(carry), lambda carry: body(carry), init)
+
+def cond(pred, true_fn, false_fn):
+    """jax.lax.cond without operands: the branches are closures."""
+    return jax.lax.cond(pred, lambda: true_fn(None), lambda: false_fn(None))
