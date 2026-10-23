@@ -1,27 +1,26 @@
 # DimWit - Tensor programming with wit
 
-> Programming is the art of telling another human being what one wants the computer to do.
-> 
-> Donald Knuth
-
-<p align="center">
-  <img src="assets/dimwit-logo.svg" alt="DimWit — Tensor programming with wit" width="360">
-</p>
-
-
-DimWit is a Scala library for numerical and machine learning programs that are easy for humans to understand.
-▶ Watch the [ScalaDays 2026 talk](https://www.youtube.com/watch?v=2ZwGhCWXN5g).
-
-## Vision
-
-We want to create a system for writing numerical and machine learning programs that puts human understanding first. While programming, the compiler should help us to keep concepts separate and sharpen our thinking about the problem.
+<table>
+<tr>
+<td width="40%" align="center">
+  <img src="assets/dimwit-logo.svg" alt="DimWit — Tensor programming with wit" width="300">
+</td>
+<td>
+  <p><i>“Programming is the art of telling another human being what one wants the computer to do.”</i><br>— Donald Knuth</p>
+  <p><b>Vision:</b> A system for writing numerical and machine learning programs that puts human understanding first. While programming, the compiler should help us to keep concepts separate and sharpen our thinking about the problem.</p>
+  <p>▶ Watch the <a href="https://www.youtube.com/watch?v=2ZwGhCWXN5g">ScalaDays 2026 talk</a>.</p>
+</td>
+</tr>
+</table>
 
 ## Why DimWit?
 
-- **Strong types and fast execution.** Numerical programs need to run fast, but they also need to be understood. JAX runs fast, but with untyped tensors the meaning of each axis lives only in the programmer's head. DimWit puts it into the types, e.g. `Tensor2[Batch, Feature, Float32]`, so the code says what each axis means and the compiler checks it.
-- **No overhead under `jit`.** DimWit only traces a function once; the compiled XLA program then runs without Scala in the loop. [GPT-2 in DimWit](https://github.com/dimwit-dev/deepwit/tree/main/examples/src/main/scala/deepwit/examples/gpt) (124M parameters, trained from scratch on 10B tokens) trains on par with plain JAX.
+Why yet another tensor library? In the era of AI-generated code, types make high-level relations clear at a glance and code easier to review. DimWit adds them to tensor code, at the runtime speed of JAX:
+
+- **Easier to understand, easier to review.** With untyped tensors, the meaning of each axis lives only in the programmer's head. DimWit puts it into the types, e.g. `Tensor2[Batch, Feature, Float32]`, so whoever reads or reviews the code sees what each axis means, and the compiler checks it.
+- **Fast.** DimWit is on par with JAX: under `jit`, a function is traced once and the compiled XLA program runs without Scala in the loop. [GPT-2 in DimWit](https://github.com/dimwit-dev/deepwit/tree/main/examples/src/main/scala/deepwit/examples/gpt) (124M parameters, trained from scratch on 10B tokens) trains as fast as in plain JAX.
 - **Names are a shared vocabulary.** Axes like `Batch` or `Feature` name the concepts of the domain. They become a shared vocabulary for your team and your AI agents, whether you discuss code, review it or prompt for it.
-- **Explicit, not implicit.** DimWit is more than a one-to-one wrapper of JAX: what JAX does silently, DimWit makes explicit, e.g. broadcasting has its own operators (`x +! bias` instead of `x + bias`) and mixing precisions requires a cast (`x.asType(VType[Float16])`). In practice, this prevents many silent errors that are hard to find.
+- **Fewer silent bugs.** Implicit broadcasting and type promotion usually do the right thing, but when they don't, the code still runs and silently produces wrong results. DimWit makes both explicit (e.g. `x +! bias`), expressing intent and preventing many silent bugs. Instant compile errors streamline the writing of explicit code.
 
 ## Example
 
@@ -144,7 +143,7 @@ Everything else is built on top of it:
 
 | Project | Description |
 |---|---|
-| [DeepWit](https://github.com/dimwit-dev/deepwit) | Type-safe deep learning library with layers, attention and GPT-2. |
+| [DeepWit](https://github.com/dimwit-dev/deepwit) | Functional deep learning library providing core modules and examples. |
 | [WitDraw](https://github.com/dimwit-dev/witdraw) | Experimental library for probabilistic programming. |
 
 ## Status 
